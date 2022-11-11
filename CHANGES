@@ -1,0 +1,37 @@
+
+New in version 1.4.2
+--------------------
+Uses Perley Butler 2017 standard for the flux desnity scale calibration.
+
+EVLA_pipeline.py
+-Updated casa version number, pipeline version number, revision date
+-Changed casalogger.func_globals['thelogfile'] to casalogger.func_globals['casa']['files']['logfile']
+
+EVLA_functions.py
+The position of 3C286 was slighly off. Corrected it. 
+
+EVLA_pipe_restore.py
+-Updated to reflect the logfile location change to casalogger.func_globals['casa']['files']['logfile']
+
+EVLA_pipe_import.py
+-Changed importevla to importasdm
+-The important xml files such as Flag.xml, Antenna.xml, SpectralWindow.xml are not being copied to the
+ms using importasdm from the sdm to the ms. Added the copying commands to do so.
+-Set process_flags=True so that the FLAG_CMD sub-table is made in the ms while running importasdm
+-Set outfile='onlineFlags.txt' in importasdm
+
+EVLA_pipe_msinfo.py
+-Added the option to make logarithmic antenna positions plot.
+-changed 'xml' to 'list' in the flagcmd execution to make the online flags plot using the file onlineFlags.txt
+made by importasdm
+
+EVLA_pipe_flagall.py
+-To reduce the dependance on the Flag.xml, changed inpmode to 'list' in flagcmd to apply the online flags using
+the file onlineFlags.txt made by importasdm
+-Changed the use of flagcmd to flagdata to apply the online flags. As a result, the application of the online flags is
+not done by using the file onlineFlags.txt made by importasdm instead of the Flag.xml file
+
+EVLA_pipe_weblog.py
+added the syntax to place the log antenna positions in the weblog
+
+
