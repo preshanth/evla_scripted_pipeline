@@ -182,5 +182,3 @@ def test_final_amp():
     assert np.isclose(np.max(again),    1.080380085, rtol=1.0)
     assert np.isclose(np.min(again),    0.813663491, rtol=1.0)
 
-
-
