@@ -74,11 +74,11 @@ def test_qa2_summary():
     # Total fraction of on-source data flagged
     m = re.search(r"flagging of end channels\): ([\.\d]+)", text)
     f_onsource = float(m.group(1))
-    assert np.isclose(f_onsource, 0.31816045306)
+    assert np.isclose(f_onsource, 0.31816045306, rtol=2e-4)
     # Final fraction of on-source data flagged
     m = re.search(r"Final fraction of on-source data flagged: ([\.\d]+)", text)
     f_onsource_flagged = float(m.group(1))
-    assert np.isclose(f_onsource_flagged, 0.334411407163)
+    assert np.isclose(f_onsource_flagged, 0.334411407163, rtol=2e-4)
     # QA2 score
     m = re.search(f"Overall QA2 score: (Fail|Pass)", text)
     assert m.group(1) == "Fail"
