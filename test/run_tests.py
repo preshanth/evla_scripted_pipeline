@@ -20,6 +20,7 @@ from evla_pipe import EVLA_functions
 
 
 SDM_NAME = "test.sdm"
+MS_NAME = f"{SDM_NAME}.ms"
 INITIAL_CAL_TABLES = [
         "BPcal.b",
         "BPinitialgain.g",
@@ -195,7 +196,7 @@ def test_find_band():
 
 
 def test_find_standards():
-    filen = "test.sdm.ms/FIELD"
+    filen = f"{MS_NAME}/FIELD"
     try:
         tb.open(filen)
         field_positions = tb.getcol("PHASE_DIR")
@@ -208,5 +209,46 @@ def test_find_standards():
     standards = EVLA_functions.find_standards(positions)
     assert len(standards) == 4
     assert standards == [[], [], [0], []]  # Field 0 is 3C147
+
+
+def test_correct_ant_posns():
+    err_code, antenna, position = EVLA_functions.correct_ant_posns(MS_NAME)
+    assert err_code == 0
+    assert antenna == "ea14"
+    assert np.allclose(position, [0.0, -0.0009, -0.0018])
+
+
+def test_spwforfield():
+    all_spws = list(range(8))  # [0 .. 7]
+    assert EVLA_functions.spwsforfield(MS_NAME, 0) == all_spws
+    assert EVLA_functions.spwsforfield(MS_NAME, 1) == all_spws
+    assert EVLA_functions.spwsforfield(MS_NAME, 2) == all_spws
+
+
+def test_refantheuristics():
+    ant_ids = [
+            13, 9, 14, 23, 27, 11, 2, 15, 24, 17, 10, 12, 19, 4, 6, 3, 26,
+            20, 25, 28, 21, 1, 16, 8, 18, 7,
+    ]
+    ant_names = [f"ea{i:0>2d}" for i in ant_ids]
+    rah = EVLA_functions.RefAntHeuristics(MS_NAME, field="0", geometry=True, flagging=True)
+    test_names = rah.calculate()
+    assert test_names == ant_names
+
+
+def test_refantgeometry():
+    rag = EVLA_functions.RefAntGeometry(MS_NAME)
+    test_scores = rag.calc_score()
+    assert np.isclose(test_scores["ea01"],  4.5032442956782326)
+    assert np.isclose(test_scores["ea02"], 22.662768358818941)
+    assert np.isclose(test_scores["ea07"],  0.0)
+
+
+def test_refantflagging():
+    raf = EVLA_functions.RefAntFlagging(MS_NAME, "0", "", "")
+    test_scores = raf.calc_score()
+    assert np.isclose(test_scores["ea18"], 26.0)
+    assert np.isclose(test_scores["ea01"], 25.864278488633168)
+    assert np.isclose(test_scores["ea02"], 25.346827797543558)
 
 

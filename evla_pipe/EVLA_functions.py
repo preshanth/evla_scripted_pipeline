@@ -32,10 +32,12 @@ import datetime
 
 import numpy as np
 
-from casatools import (table, measures, quanta)
+from casatasks import flagdata
+from casatools import (table, measures, quanta, msmetadata)
 tb = table()
 me = measures()
 qa = quanta()
+msmd = msmetadata()
 
 # FIXME Requires:
 # - getCalFlaggedSoln
@@ -66,6 +68,19 @@ def find_EVLA_band(frequency):
             return name
     else:
         raise ValueError("Invalid EVLA frequency: {0}".format(frequency))
+
+
+def spwsforfield(vis, field_id):
+    """
+    Get observed DDIDs for the given field ID.
+    Included for backword compatibility. Future uses should probably just inline.
+    """
+    try:
+        msmd.open(vis)
+        spws = msmd.spwsforfield(field_id)
+    finally:
+        msmd.close()
+    return spws.tolist()
 
 
 def _calc_separation(pos1, pos2):
@@ -190,7 +205,7 @@ def correct_ant_posns(vis_name, print_offsets=False):
             html = response.read()
         finally:
             response.close()
-        html_lines = html.split('\n')
+        html_lines = html.decode("utf-8").split('\n')
         for correction_line in html_lines:
             if len(correction_line) and correction_line[0] != '<' and correction_line[0] != ';':
                 for month in MONTHS:
@@ -280,30 +295,12 @@ def correct_ant_posns(vis_name, print_offsets=False):
     return [0, ant_string, parms]
 
 
-def spwsforfield(vis,field):
-    # FIXME Isn't this a function in `msmd`?
-    # Get observed DDIDs for specified field from MAIN
-    try:
-        tb.open(vis)
-        st = tb.query('FIELD_ID==' + str(field))
-        ddids = np.unique(st.getcol('DATA_DESC_ID'))
-        st.close()
-    finally:
-        tb.close()
-    # Get SPW_IDs corresponding to those DDIDs
-    try:
-        tb.open(vis+'/DATA_DESCRIPTION')
-        spws = tb.getcol('SPECTRAL_WINDOW_ID')[ddids]
-    finally:
-        tb.close()
-    return list(spws)
-
-
 # Classes
 # -------
 # RefAntHeuristics - Chooses the reference antenna heuristics.
 # RefAntGeometry   - Contains the geometry heuristics for the reference antenna.
 # RefAntFlagging   - Contains the flagging heuristics for the reference antenna.
+# FIXME update docstring and writing styles.
 
 class RefAntHeuristics:
     """
@@ -369,6 +366,8 @@ class RefAntHeuristics:
         self.intent = intent
         self.geometry = geometry
         self.flagging = flagging
+        self.geo_score = None
+        self.flag_score = None
 
     def calculate(self):
         """
@@ -385,31 +384,27 @@ class RefAntHeuristics:
         # If no heuristics are specified, return no reference antennas
         if not (self.geometry or self.flagging):
             return []
-        # Get the antenna names and initialize the score dictionary
         names = self._get_names()
-        score = dict()
-        for n in names:
-            score[n] = 0.0
+        score = {n: 0.0 for n in names}
         # For each selected heuristic, add the score for each antenna
-        self.geoScore = 0.0
-        self.flagScore = 0.0
         if self.geometry:
-            geoClass = RefAntGeometry( self.vis )
-            self.geoScore = geoClass.calc_score()
-            for n in names: score[n] += self.geoScore[n]
+            ref_ant_geo = RefAntGeometry(self.vis)
+            self.geo_score = ref_ant_geo.calc_score()
+            for n in names:
+                score[n] += self.geo_score[n]
         if self.flagging:
-            flagClass = RefAntFlagging(self.vis, self.field, self.spw, self.intent)
-            self.flagScore = flagClass.calc_score()
+            ref_ant_flag = RefAntFlagging(self.vis, self.field, self.spw, self.intent)
+            self.flag_score = ref_ant_flag.calc_score()
             for n in names:
                 try:
-                    score[n] += self.flagScore[n]
+                    score[n] += self.flag_score[n]
                 except KeyError as e:
-                    logprint("WARNING: antenna "+str(e)+", is completely flagged and missing from calibrators.ms", logfileout='logs/refantwarnings.log')
-        # Calculate the final score and return the list of ranked
-        # reference antennas.  NB: The best antennas have the highest
-        # score, so a reverse sort is required.
-        keys = np.array(score.keys())
-        values = np.array(score.values())
+                    logprint(f"WARNING: antenna {e}, is completely flagged and missing from calibrators.ms", logfileout='logs/refantwarnings.log')
+        # Calculate the final score and return the list of ranked reference
+        # antennas.  The best antennas have the highest score, so a reverse
+        # sort is required.
+        keys = np.array(list(score.keys()))
+        values = np.array(list(score.values()))
         argSort = np.argsort(values)[::-1]
         refAntUpper = keys[argSort]
         refAnt = list()
@@ -419,18 +414,13 @@ class RefAntHeuristics:
         return refAnt
 
     def _get_names(self):
-        tbLoc = casac.table()
         try:
-            tbLoc.open( self.vis+'/ANTENNA' )
-            # Get the antenna names and capitalize them (unfortunately,
-            # some CASA tools capitalize them and others don't)
-            names = tbLoc.getcol( 'NAME' ).tolist()
-            rNames = range( len(names) )
-            for n in rNames:
-                names[n] = names[n]
+            tb.open(self.vis+'/ANTENNA')
+            names = tb.getcol('NAME').tolist()
         finally:
-            tbLoc.close()
+            tb.close()
         return names
+
 
 class RefAntGeometry:
     """
@@ -485,11 +475,11 @@ class RefAntGeometry:
         """
         # Get the antenna information, measures, and locations
         info = self._get_info()
-        measures = self._get_measures( info )
-        radii, longs, lats = self._get_latlongrad( info, measures )
+        measures = self._get_measures(info)
+        radii, longs, lats = self._get_latlongrad(info, measures)
         # Calculate the antenna distances and scores
-        distance = self._calc_distance( radii, longs, lats )
-        score = self._calc_score( distance )
+        distance = self._calc_distance(radii, longs, lats)
+        score = self._calc_score(distance)
         return score
 
     def _get_info(self):
@@ -507,24 +497,16 @@ class RefAntGeometry:
             'name'              - Array antenna name strings.
             'position_keywords' - Antenna information dictionary.
         """
-        # Create the local instance of the table tool and open it with
-        # the antenna subtable of the MS
-        tbLoc = casac.table()
+        info = dict()
         try:
-            tbLoc.open( self.vis+'/ANTENNA' )
+            tb.open( self.vis+'/ANTENNA' )
             # Get the antenna information from the antenna table
-            info = dict()
-            info['position'] = tbLoc.getcol( 'POSITION' )
-            info['flag_row'] = tbLoc.getcol( 'FLAG_ROW' )
-            info['name'] = tbLoc.getcol( 'NAME' )
-            info['position_keywords'] = tbLoc.getcolkeywords( 'POSITION' )
+            info['position'] = tb.getcol('POSITION')
+            info['flag_row'] = tb.getcol('FLAG_ROW')
+            info['name'] = tb.getcol('NAME')
+            info['position_keywords'] = tb.getcolkeywords('POSITION')
         finally:
-            tbLoc.close()
-        # The flag tool appears to return antenna names as upper case,
-        # which seems to be different from the antenna names stored in
-        # MSes.  Therefore, these names will be capitalized here.
-        rRow = range( len( info['name'] ) )
-        # Return the antenna information
+            tb.close()
         return info
 
     def _get_measures(self, info):
@@ -541,75 +523,58 @@ class RefAntGeometry:
         Dictionary containing the antenna measures with format:
         '<antenna name>' - antenna measures
         """
-        # Create the local instances of the measures and quanta tools
-        meLoc = casac.measures()
-        qaLoc = casac.quanta()
         # Initialize the measures dictionary and the position and
         # position_keywords variables
         measures = dict()
         position = info['position']
         position_keywords = info['position_keywords']
         rf = position_keywords['MEASINFO']['Ref']
-        for row,ant in enumerate( info['name'] ):
+        for row, ant in enumerate(info['name']):
             if not info['flag_row'][row]:
-                p = position[0,row]
+                p = position[0, row]
                 pk = position_keywords['QuantumUnits'][0]
-                v0 = qaLoc.quantity( p, pk )
+                v0 = qa.quantity(p, pk)
                 #
-                p = position[1,row]
+                p = position[1, row]
                 pk = position_keywords['QuantumUnits'][1]
-                v1 = qaLoc.quantity( p, pk )
+                v1 = qa.quantity(p, pk)
                 #
-                p = position[2,row]
+                p = position[2, row]
                 pk = position_keywords['QuantumUnits'][2]
-                v2 = qaLoc.quantity( p, pk )
-                measures[ant] = meLoc.position( rf=rf, v0=v0,
-                    v1=v1, v2=v2 )
+                v2 = qa.quantity(p, pk)
+                measures[ant] = me.position(rf=rf, v0=v0, v1=v1, v2=v2)
         return measures
 
-    def _get_latlongrad( self, info, measures ):
+    def _get_latlongrad(self, info, measures):
         """
         Get the latitude, longitude and radius (from the center of the earth)
         for each antenna.
 
         Parameters
         ----------
-        info     - This python dictionary contains the antenna information from
-                   private member function _get_info().
-        measures - This python dictionary contains the antenna measures from private
-                   member function _get_measures().
+        info     - Dictionary of the antenna information from private member
+                   function _get_info().
+        measures - Dictionary of the antenna measures from private member
+                   function _get_measures().
 
         Returns
         -------
-        Tuple containing containing radius, longitude, and latitude python
-        dictionaries.
+        Tuple containing containing radius, longitude, and latitude dictionaries.
         """
-        qaLoc = casac.quanta()
-        # Get the radii, longitudes, and latitudes
-        radii = dict()
-        longs = dict()
-        lats = dict()
-        for ant in info['name']:
-            value = measures[ant]['m2']['value']
-            unit = measures[ant]['m2']['unit']
-            quantity = qaLoc.quantity( value, unit )
-            convert = qaLoc.convert( quantity, 'm' )
-            radii[ant] = qaLoc.getvalue( convert )
-            #
-            value = measures[ant]['m0']['value']
-            unit = measures[ant]['m0']['unit']
-            quantity = qaLoc.quantity( value, unit )
-            convert = qaLoc.convert( quantity, 'rad' )
-            longs[ant] = qaLoc.getvalue( convert )
-            #
-            value = measures[ant]['m1']['value']
-            unit = measures[ant]['m1']['unit']
-            quantity = qaLoc.quantity( value, unit )
-            convert = qaLoc.convert( quantity, 'rad' )
-            lats[ant] = qaLoc.getvalue( convert )
-        return radii, longs, lats
+        # The `measures` dictionary follows:
+        #   {"ea01": {"m0": {"value": 1, "unit": "m"} ...}}
+        # The values from `qa.getvalue` are returned as a single-element numpy
+        # arrays so must be indexed to return a scalar value.
+        def get_measures_value(ant, ax, as_unit):
+            quantity = qa.convert(measures[ant][ax], as_unit)
+            return qa.getvalue(quantity)[0]
+        ant_names = info["name"]
+        radii = {a: get_measures_value(a, "m2", "m")   for a in ant_names}
+        lons  = {a: get_measures_value(a, "m0", "rad") for a in ant_names}
+        lats  = {a: get_measures_value(a, "m1", "rad") for a in ant_names}
+        return radii, lons, lats
 
-    def _calc_distance(self, radii, longs, lats):
+    def _calc_distance(self, radii, lons, lats):
         """
         Calculate the antenna distances from the array reference from the
         radii, longitudes, and latitudes.
@@ -618,33 +583,29 @@ class RefAntGeometry:
 
         Parameters
         ----------
-        radii - This python dictionary contains the radius (from the center of the
-                earth) for each antenna.
-        longs - This python dictionary contains the longitude for each antenna.
-        lats  - This python dictionary contains the latitude for each antenna.
+        radii - Radius (from the center of the earth) dictionary for each antenna.
+        lons  - Longitude dictionary for each antenna.
+        lats  - Latitude dictionary for each antenna.
 
         Results
         -------
         Dictionary containing the antenna distances from the array reference.
         """
-        # Convert the dictionaries to numpy float arrays.  The median
-        # longitude is subtracted.
-        radiusValues = np.array( radii.values() )
-        longValues = np.array( longs.values() )
-        longValues -= np.median( longValues )
-        latValues = np.array( lats.values() )
-        # Calculate the x and y antenna locations.  The medians are
-        # subtracted.
-        x = longValues * np.cos(latValues) * radiusValues
-        x -= np.median( x )
-        y = latValues * radiusValues
-        y -= np.median( y )
-        # Calculate the antenna distances from the array reference and
-        # return them
-        distance = dict()
-        names = radii.keys()
-        for i,ant in enumerate(names):
-            distance[ant] = np.sqrt(pow(x[i],2) + pow(y[i],2))
+        # Convert the dictionaries to numpy float arrays.
+        rad = np.array(list(radii.values()))
+        lon = np.array(list(lons.values()))
+        lat = np.array(list(lats.values()))
+        lon -= np.median(lon)
+        # Calculate the "x" and "y" antenna locations and subtract medians.
+        x = lon * np.cos(lat) * rad
+        y = lat * rad
+        x -= np.median(x)
+        y -= np.median(y)
+        # Calculate the antenna distances from the array reference
+        distance = {
+                ant_name: np.sqrt(x[i]**2 + y[i]**2)
+                for i, ant_name in enumerate(radii.keys())
+        }
         return distance
 
     def _calc_score(self, distance):
@@ -669,19 +630,15 @@ class RefAntGeometry:
         -------
         Dictionary containing the score for each antenna.
         """
-        # Get the number of good data, calculate the fraction of good
-        # data, and calculate the good and bad weights
-        far = np.array( distance.values(), np.float )
-        fFar = far / float( np.max(far) )
-        wFar = fFar * len(far)
-        wClose = ( 1.0 - fFar ) * len(far)
-        # Calculate the score for each antenna and return them
-        score = dict()
-        names = distance.keys()
-        rName = range( len(wClose) )
-        for n in rName:
-            score[names[n]] = wClose[n]
+        far = np.array(list(distance.values()), float)
+        n = far.shape[0]
+        closeness_score = (1 - far / far.max()) * n
+        score = {
+                name: closeness_score[i]
+                for i, name in enumerate(distance.keys())
+        }
         return score
+
 
 class RefAntFlagging:
     """
@@ -712,7 +669,6 @@ class RefAntFlagging:
     _get_good   - Get the number of unflagged (good) data from the MS.
     _calc_score - Calculates the flagging score for each antenna.
     """
-
     def __init__(self, vis, field, spw, intent):
         """
         Parameters
@@ -725,7 +681,6 @@ class RefAntFlagging:
             Spectral window ID or list of spectral window IDs.
         intent: str or list-like
             Intent or list of intents.
-
         """
         self.vis = vis
         self.field = field
@@ -752,7 +707,6 @@ class RefAntFlagging:
         -------
         Dictionary containing the number of unflagged (good) data from the MS.
         """
-        # FIXME will need to import flagdata from casatasks
         results = flagdata(
                 vis=self.vis,
                 mode="summary",
@@ -763,12 +717,11 @@ class RefAntFlagging:
                 flagbackup=False,
                 savepars=False,
         )
-        # Calculate the number of good data for each antenna and return
-        # them
-        antenna = results['antenna']
-        good = dict()
-        for a in antenna.keys():
-            good[a] = antenna[a]['total'] - antenna[a]['flagged']
+        # Calculate the good data total for each antenna.
+        good = {
+                name: vals["total"] - vals["flagged"]
+                for name, vals in results["antenna"].items()
+        }
         return good
 
     def _calc_score(self, good):
@@ -785,25 +738,20 @@ class RefAntFlagging:
 
         Parameters
         ----------
-        good - This python dictionary contains the number of unflagged (good) data
-               from the MS.  They are obtained in private member function _get_good().
+        good - Dictionary of unflagged (good) data from the MS. They are
+               obtained in private member function _get_good().
 
         Returns
         -------
         Dictionary containing the score for each antenna.
         """
-        # Get the number of good data, calculate the fraction of good
-        # data, and calculate the good and bad weights
-        nGood = np.array(good.values(), np.float)
-        fGood = nGood / float(np.max(nGood))
-        wGood = fGood * len(nGood)
-        wBad = (1.0 - fGood) * len(nGood)
-        # Calculate the score for each antenna and return them
-        score = dict()
-        names = good.keys()
-        rName = range(len(wGood))
-        for n in rName:
-            score[names[n]] = wGood[n]
+        unflag = np.array(list(good.values()), float)
+        n = unflag.shape[0]
+        unflagged_score = unflag / unflag.max() * n
+        score = {
+                name: unflagged_score[i]
+                for i, name in enumerate(good.keys())
+        }
         return score
 
 
@@ -1013,7 +961,7 @@ def find_3C84(positions):
         position = me.direction('j2000', str(positions[ii][0])+'rad', str(positions[ii][1])+'rad')
         separation = me.separation(position,position_3C84)['value'] * pi/180.0
         if (separation < MAX_SEPARATION):
-                  fields_3C84.append(ii)
+            fields_3C84.append(ii)
     return fields_3C84
 
 
