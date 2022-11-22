@@ -68,34 +68,36 @@ def find_EVLA_band(frequency):
         raise ValueError("Invalid EVLA frequency: {0}".format(frequency))
 
 
-def find_standards(positions):
-    # Set the max separation as ~1'
-    MAX_SEPARATION = 60*2.0e-5
-    position_3C48 = me.direction('j2000', '1h37m41.299', '33d9m35.133')
-    fields_3C48 = []
+def _calc_separation(pos1, pos2):
+    deg_to_rad = np.pi / 180.0
+    return me.separation(pos1, pos2)["value"] * deg_to_rad
+
+
+def find_standards(positions, max_sep=1.2e-3):
+    """
+    Parameters
+    ----------
+    max_sep : number, default 1.2e-3 rad (about 4.1 arcmin)
+    """
+    position_3C48  = me.direction('j2000', '1h37m41.299', '33d9m35.133')
     position_3C138 = me.direction('j2000', '5h21m9.886', '16d38m22.051')
-    fields_3C138 = []
     position_3C147 = me.direction('j2000', '5h42m36.138', '49d51m7.234')
-    fields_3C147 = []
     position_3C286 = me.direction('j2000', '13h31m8.288', '30d30m32.959')
+    fields_3C48  = []
+    fields_3C138 = []
+    fields_3C147 = []
     fields_3C286 = []
-    for ii in range(0,len(positions)):
-        position = me.direction('j2000', str(positions[ii][0])+'rad', str(positions[ii][1])+'rad')
-        separation = me.separation(position,position_3C48)['value'] * pi/180.0
-        if (separation < MAX_SEPARATION):
+    for ii, (lon, lat) in enumerate(positions):
+        position = me.direction('j2000', "{0}rad".format(lon), "{0}rad".format(lat))
+        separation = _calc_separation(position, position_3C48)
+        if _calc_separation(position, position_3C48) < max_sep:
             fields_3C48.append(ii)
-        else:
-            separation = me.separation(position,position_3C138)['value'] * pi/180.0
-            if (separation < MAX_SEPARATION):
-                fields_3C138.append(ii)
-            else:
-                separation = me.separation(position,position_3C147)['value'] * pi/180.0
-                if (separation < MAX_SEPARATION):
-                    fields_3C147.append(ii)
-                else:
-                    separation = me.separation(position,position_3C286)['value'] * pi/180.0
-                    if (separation < MAX_SEPARATION):
-                        fields_3C286.append(ii)
+        elif _calc_separation(position, position_3C138) < max_sep:
+            fields_3C138.append(ii)
+        elif _calc_separation(position, position_3C147) < max_sep:
+            fields_3C147.append(ii)
+        elif _calc_separation(position, position_3C286) < max_sep:
+            fields_3C286.append(ii)
     fields = [fields_3C48, fields_3C138, fields_3C147, fields_3C286]
     return fields
 

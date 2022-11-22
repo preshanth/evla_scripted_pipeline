@@ -194,3 +194,19 @@ def test_find_band():
     assert find_band(3.0e9) == "S"
 
 
+def test_find_standards():
+    filen = "test.sdm.ms/FIELD"
+    try:
+        tb.open(filen)
+        field_positions = tb.getcol("PHASE_DIR")
+    finally:
+        tb.close()
+    assert field_positions.shape == (2, 1, 3)
+    positions = field_positions.squeeze().transpose()
+    assert np.allclose(positions[:,0], [1.49488453, 1.99893968, 2.27802515])
+    assert np.allclose(positions[:,1], [0.87008170, 0.30901538, 0.32453906])
+    standards = EVLA_functions.find_standards(positions)
+    assert len(standards) == 4
+    assert standards == [[], [], [0], []]  # Field 0 is 3C147
+
+
