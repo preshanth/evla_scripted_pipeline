@@ -46,14 +46,26 @@ def uniq(inlist):
 
 
 def find_EVLA_band(frequency):
-    FLOW = [0.0e6, 150.0e6, 700.0e6, 2.0e9, 4.0e9, 8.0e9, 12.0e9, 18.0e9, 26.5e9, 40.0e9]
-    FHIGH = [150.0e6, 700.0e6, 2.0e9, 4.0e9, 8.0e9, 12.0e9, 18.0e9, 26.5e9, 40.0e9, 56.0e9]
-    BBAND = ['4', 'P', 'L', 'S', 'C', 'X', 'U', 'K', 'A', 'Q']
-    band = '?'
-    for ii in range(0,len(FLOW)):
-        if ((frequency > FLOW[ii]) and (frequency <= FHIGH[ii])):
-            band = BBAND[ii]
-    return band
+    # FIXME This isn't necessarily right around X/U since they overlap.
+    # Band name and band edge frequencies in GHz
+    band_freqs = {
+            "4": ( 0.00,  0.15),
+            "P": ( 0.15,  0.70),
+            "L": ( 0.70,  2.00),
+            "S": ( 2.00,  4.00),
+            "C": ( 4.00,  8.00),
+            "X": ( 8.00, 12.00),
+            "U": (12.00, 18.00),
+            "K": (18.00, 26.50),
+            "A": (26.50, 40.00),
+            "Q": (40.00, 56.00),
+    }
+    freq_ghz = frequency / 1e9  # Hz to GHz
+    for name, (f_lo, f_hi) in band_freqs.items():
+        if f_lo < freq_ghz <= f_hi:
+            return name
+    else:
+        raise ValueError("Invalid EVLA frequency: {0}".format(frequency))
 
 
 def find_standards(positions):

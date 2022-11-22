@@ -2,6 +2,7 @@
 
 import os
 import re
+import sys
 import warnings
 from glob import glob
 
@@ -14,6 +15,8 @@ with warnings.catch_warnings() as w:
     warnings.simplefilter("ignore", category=DeprecationWarning)
     from casatools import table
     tb = table()
+
+from evla_pipe import EVLA_functions
 
 
 SDM_NAME = "test.sdm"
@@ -181,4 +184,13 @@ def test_final_amp():
     assert np.isclose(np.std(again),    0.020725715, rtol=1.0)
     assert np.isclose(np.max(again),    1.080380085, rtol=1.0)
     assert np.isclose(np.min(again),    0.813663491, rtol=1.0)
+
+
+def test_find_band():
+    find_band = EVLA_functions.find_EVLA_band
+    assert find_band(0.1e9) == "4"
+    assert find_band(0.6e9) == "P"
+    assert find_band(1.5e9) == "L"
+    assert find_band(3.0e9) == "S"
+
 
