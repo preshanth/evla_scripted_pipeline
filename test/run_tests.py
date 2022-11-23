@@ -17,6 +17,7 @@ with warnings.catch_warnings() as w:
     tb = table()
 
 from evla_pipe import EVLA_functions
+from evla_pipe import lib_EVLApipeutils
 
 
 SDM_NAME = "test.sdm"
@@ -250,5 +251,41 @@ def test_refantflagging():
     assert np.isclose(test_scores["ea18"], 26.0)
     assert np.isclose(test_scores["ea01"], 25.864278488633168)
     assert np.isclose(test_scores["ea02"], 25.346827797543558)
+
+
+def test_getcalflaggedsoln():
+    filen = "final_caltables/finalBPcal.b"
+    assert os.path.exists(filen)
+    results = lib_EVLApipeutils.getCalFlaggedSoln(filen)
+    assert len(results) == 5
+    assert np.isclose(results["all"]["flagged"], 42.375)
+    assert np.isclose(results["all"]["fraction"], 0.10186298076923077)
+    assert results["all"]["total"] == 416
+    assert np.isclose(results["ant"][0][0]["flagged"], 0.8125)
+
+
+def test_buildscans():
+    results = lib_EVLApipeutils.buildscans(MS_NAME)
+    desc = results["DataDescription"]
+    assert len(desc) == 8
+    assert desc[0]["corrtype"] == [5, 6, 7, 8]
+    assert desc[0]["ipol"] == 0
+    assert desc[0]["nchan"] == 64
+    assert np.isclose(desc[0]["reffreq"], 1494000000.0)
+    assert desc[0]["spwname"] == "EVLA_L#A0C0#0"
+    scan = results["Scans"]
+    assert len(scan) == 6
+    assert scan[1]["npol"] == 8 * [4]
+
+
+def test_getbcalstats():
+    filen = "testBPcal.b"
+    assert os.path.exists(filen)
+    results = lib_EVLApipeutils.getBCalStatistics(filen)
+    assert len(results) == 5
+    assert len(results["antspw"]) == 26
+    assert len(results["antDict"]) == 26
+    assert np.isclose(results["antband"][25]["EVLA_L"]["A0C0"]["all"]["amp"]["mean"], 0.98601957127590445)
+    assert results["rxBasebandDict"]["EVLA_L"]["A0C0"] == [0, 1, 2, 3]
 
 

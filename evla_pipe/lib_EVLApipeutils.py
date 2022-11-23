@@ -26,33 +26,20 @@
 #              Socorro, NM,  USA
 #
 ######################################################################
-# Functions for EVLA pipeline script
-# Runs on CASA 3.4.0
-# 05/01/12 CJC
-# 05/03/12 STM some modified functions
-# 06/19/12 STM handle channel sol flags
-# 09/12/12 STM bug fix, add medians to getCalFlaggedSoln
-# Runs on CASA 4.0.0
-# 11/13/12 STM new SWIG calling method
-# 11/19/12 STM add getCalStatistics function
-# 12/17/12 STM add phases to getCalStatistics
-######################################################################
-from taskinit import *
+
+import numpy
+
+from casatools import table
+from casatools import ms as mstool
+
 
 def getCalFlaggedSoln(calTable):
     """
-    Version 2012-05-03 v1.0 STM to 3.4 from original 3.3 version, new dictionary
-    Version 2012-05-03 v1.1 STM indexed by ant, spw also
-    Version 2012-09-11 v1.1 STM correct doc of <polid> indexing, bug fix, median over ant
-    Version 2012-09-12 v1.2 STM median over ant revised
-    Version 2012-11-13 v2.0 STM casa 4.0 version with new call mechanism
-    Version 2013-01-11 v2.1 STM use getvarcol
-    
     This method will look at the specified calibration table and return the
     fraction of flagged solutions for each Antenna, SPW, Poln.  This assumes
     that the specified cal table will not have any channel dependent flagging.
 
-    return structure is a dictionary with AntennaID and Spectral Window ID
+    The return structure is a dictionary with AntennaID and Spectral Window ID
     as the keys and returns a list of fractional flagging per polarization in
     the order specified in the Cal Table.
 
@@ -88,6 +75,7 @@ def getCalFlaggedSoln(calTable):
 
     Example:
 
+    ```
     !cp /home/sandrock2/smyers/casa/pipeline/lib_EVLApipeutils.py .
     from lib_EVLApipeutils import getCalFlaggedSoln
     result = getCalFlaggedSoln('calSN2010FZ.G0')
@@ -99,7 +87,7 @@ def getCalFlaggedSoln(calTable):
     result['ant'][15]
         Out: {0: {'flagged': 60.0, 'fraction': 0.42857142857142855, 'total': 140},
               1: {'flagged': 60.0, 'fraction': 0.42857142857142855, 'total': 140}}
-    result['spw'][3] 
+    result['spw'][3]
         Out: {0: {'flagged': 39.0, 'fraction': 0.14444444444444443, 'total': 270},
               1: {'flagged': 39.0, 'fraction': 0.14444444444444443, 'total': 270}}
 
@@ -111,34 +99,39 @@ def getCalFlaggedSoln(calTable):
               1: {'flagged': 6.03125, 'fraction': 0.43080357142857145, 'total': 14}}
     Bresult['antmedian']
         Out: {'flagged': 0.0625, 'fraction': 0.002232142857142857, 'number': 27, 'total': 28.0}
+    ```
 
     Another example, to make a list of spws in the caltable that have any
     unflagged solutions in them:
 
+    ```
     G2result = getCalFlaggedSoln('calSN2010FZ.G2.2')
     goodspw = []
     for ispw in G2result['spw'].keys():
-       tot = 0
-       flagd = 0
-       for ipol in G2result['spw'][ispw].keys():
-          tot += G2result['spw'][ispw][ipol]['total']
-          flagd += G2result['spw'][ispw][ipol]['flagged']
-       if tot>0:
-          fract = flagd/tot
-          if fract<1.0:
-             goodspw.append(ispw)
-
+        tot = 0
+        flagd = 0
+        for ipol in G2result['spw'][ispw].keys():
+            tot += G2result['spw'][ispw][ipol]['total']
+            flagd += G2result['spw'][ispw][ipol]['flagged']
+        if tot>0:
+            fract = flagd/tot
+            if fract<1.0:
+                goodspw.append(ispw)
     goodspw
         Out: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-    
+    ```
+
+    Changelog
+    ---------
+    2012-05-03 v1.0 STM to 3.4 from original 3.3 version, new dictionary
+    2012-05-03 v1.1 STM indexed by ant, spw also
+    2012-09-11 v1.1 STM correct doc of <polid> indexing, bug fix, median over ant
+    2012-09-12 v1.2 STM median over ant revised
+    2012-11-13 v2.0 STM casa 4.0 version with new call mechanism
+    2013-01-11 v2.1 STM use getvarcol
     """
+    mytb = table()
 
-    #from taskinit import tbtool
-    #mytb = tbtool.create()
-    mytb = casac.table()
-
-    import pylab as pl
-    
     mytb.open(calTable)
     antCol = mytb.getcol('ANTENNA1')
     spwCol = mytb.getcol('SPECTRAL_WINDOW_ID')
@@ -169,7 +162,7 @@ def getCalFlaggedSoln(calTable):
     medDict['total'] = []
     medDict['flagged'] = []
     medDict['fraction'] = []
-    
+
     for rrow in rowlist:
         rown = rrow.strip('r')
         idx = int(rown)-1
@@ -183,8 +176,8 @@ def getCalFlaggedSoln(calTable):
         iid = 0
         #
         # Set up dictionaries if needed
-        if outDict['antspw'].has_key(antIdx):
-            if not outDict['antspw'][antIdx].has_key(spwIdx):
+        if antIdx in outDict['antspw']:
+            if spwIdx not in outDict['antspw'][antIdx]:
                 outDict['antspw'][antIdx][spwIdx] = {}
                 for poln in range(np):
                     outDict['antspw'][antIdx][spwIdx][poln] = {}
@@ -201,7 +194,7 @@ def getCalFlaggedSoln(calTable):
                 outDict['antspw'][antIdx][spwIdx][poln] = {}
                 outDict['antspw'][antIdx][spwIdx][poln]['total'] = 0
                 outDict['antspw'][antIdx][spwIdx][poln]['flagged'] = 0.0
-        if not outDict['spw'].has_key(spwIdx):
+        if spwIdx not in outDict['spw']:
             outDict['spw'][spwIdx] = {}
             for poln in range(np):
                 outDict['spw'][spwIdx][poln] = {}
@@ -264,117 +257,116 @@ def getCalFlaggedSoln(calTable):
                 nptotal = outDict['antspw'][antIdx][spwIdx][poln]['total']
                 npflagged = outDict['antspw'][antIdx][spwIdx][poln]['flagged']
                 outDict['antspw'][antIdx][spwIdx][poln]['fraction'] = float(npflagged)/float(nptotal)
-    #
     # do medians
     outDict['antmedian'] = {}
     for item in medDict.keys():
         alist = medDict[item]
-        aarr = pl.array(alist)
-        amed = pl.median(aarr)
+        aarr = numpy.array(alist)
+        amed = numpy.median(aarr)
         outDict['antmedian'][item] = amed
     outDict['antmedian']['number'] = len(medDict['fraction'])
-    
+
     return outDict
-    
+
 
 def buildscans(msfile):
     """
-   buildscans:  compile scan information for msfile
-  
-   Created S.T. Myers 2012-05-07  v1.0 
-   Updated S.T. Myers 2012-05-14  v1.1 add corrtype
-   Updated S.T. Myers 2012-06-27  v1.2 add corrdesc lookup
-   Updated S.T. Myers 2012-11-13  v2.0 STM casa 4.0 new calls
-             
-   Usage:
-          from lib_EVLApipeutils import buildscans
-  
-   Input:
-  
-           msfile   -   name of MS
-  
-   Output: scandict (return value)
-  
-   Examples:
-  
-   CASA <2>: from lib_EVLApipeutils import buildscans
-   
-   CASA <3>: msfile = 'TRSR0045_sb600507.55900.ms'
-   
-   CASA <4>: myscans = buildscans(msfile)
-   Getting scansummary from MS
-   Found 16 DataDescription IDs
-   Found 4 StateIds
-   Found 3422 times in DD=0
-   Found 3422 times in DD=1
-   Found 3422 times in DD=2
-   Found 3422 times in DD=3
-   Found 3422 times in DD=4
-   Found 3422 times in DD=5
-   Found 3422 times in DD=6
-   Found 3422 times in DD=7
-   Found 3422 times in DD=8
-   Found 3422 times in DD=9
-   Found 3422 times in DD=10
-   Found 3422 times in DD=11
-   Found 3422 times in DD=12
-   Found 3422 times in DD=13
-   Found 3422 times in DD=14
-   Found 3422 times in DD=15
-   Found total 54752 times
-   Found 175 scans min=1 max=180
-   Size of scandict in memory is 248 bytes
-   
-   CASA <5>: myscans['Scans'][1]['intents']
-     Out[5]: 'CALIBRATE_AMPLI#UNSPECIFIED,UNSPECIFIED#UNSPECIFIED'
-   
-   CASA <6>: myscans['Scans'][1]['dd']
-     Out[6]: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-   
-   CASA <7>: myscans['DataDescription'][0]
-     Out[7]: 
-   {'corrdesc': ['RR', 'RL', 'LR'', 'LL'],
-    'corrtype': [5, 6, 7, 8],
-    'ipol': 0,
-    'nchan': 64,
-    'npol': 4,
-    'reffreq': 994000000.0,
-    'spw': 0,
-    'spwname': 'Subband:0'}
+    Compile scan information for a measurement set.
 
-   CASA <8>: myscans['Scans'][1]['times'][0]
-     Out[8]: 
-   [4829843281.500001,
-    4829843282.5,
-    4829843283.5,
-    4829843284.5,
-    ...
-    4829843336.5]
+    Usage:
+           from lib_EVLApipeutils import buildscans
 
-   The last of these returns the integration midpoints for scan 1 DD 0.
+    Input:
 
-   Note that to get spw and pol info you use the DD indexes from ['dd']
-   in the 'Scans' part to index into the 'DataDescription' info.
+            msfile   -   name of MS
 
-   You can also list the keys available in the Scans sub-dictionary:
-   
-   CASA <9>: myscans['Scans'][1].keys()
-     Out[9]: 
-   ['scan_mid',
-    'intents',
-    'field',
-    'dd',
-    'npol',
-    'rra',
-    'spw',
-    'scan_int',
-    'scan_start',
-    'times',
-    'scan_end',
-    'rdec']
+    Output: scandict (return value)
 
+    Examples:
+
+    CASA <2>: from lib_EVLApipeutils import buildscans
+
+    CASA <3>: msfile = 'TRSR0045_sb600507.55900.ms'
+
+    CASA <4>: myscans = buildscans(msfile)
+    Getting scansummary from MS
+    Found 16 DataDescription IDs
+    Found 4 StateIds
+    Found 3422 times in DD=0
+    Found 3422 times in DD=1
+    Found 3422 times in DD=2
+    Found 3422 times in DD=3
+    Found 3422 times in DD=4
+    Found 3422 times in DD=5
+    Found 3422 times in DD=6
+    Found 3422 times in DD=7
+    Found 3422 times in DD=8
+    Found 3422 times in DD=9
+    Found 3422 times in DD=10
+    Found 3422 times in DD=11
+    Found 3422 times in DD=12
+    Found 3422 times in DD=13
+    Found 3422 times in DD=14
+    Found 3422 times in DD=15
+    Found total 54752 times
+    Found 175 scans min=1 max=180
+    Size of scandict in memory is 248 bytes
+
+    CASA <5>: myscans['Scans'][1]['intents']
+      Out[5]: 'CALIBRATE_AMPLI#UNSPECIFIED,UNSPECIFIED#UNSPECIFIED'
+
+    CASA <6>: myscans['Scans'][1]['dd']
+      Out[6]: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+
+    CASA <7>: myscans['DataDescription'][0]
+      Out[7]:
+    {'corrdesc': ['RR', 'RL', 'LR'', 'LL'],
+     'corrtype': [5, 6, 7, 8],
+     'ipol': 0,
+     'nchan': 64,
+     'npol': 4,
+     'reffreq': 994000000.0,
+     'spw': 0,
+     'spwname': 'Subband:0'}
+
+    CASA <8>: myscans['Scans'][1]['times'][0]
+      Out[8]:
+    [4829843281.500001,
+     4829843282.5,
+     4829843283.5,
+     4829843284.5,
+     ...
+     4829843336.5]
+
+    The last of these returns the integration midpoints for scan 1 DD 0.
+
+    Note that to get spw and pol info you use the DD indexes from ['dd']
+    in the 'Scans' part to index into the 'DataDescription' info.
+
+    You can also list the keys available in the Scans sub-dictionary:
+
+    CASA <9>: myscans['Scans'][1].keys()
+      Out[9]:
+    ['scan_mid',
+     'intents',
+     'field',
+     'dd',
+     'npol',
+     'rra',
+     'spw',
+     'scan_int',
+     'scan_start',
+     'times',
+     'scan_end',
+     'rdec']
+
+    Changelog
+    ---------
+    Created S.T. Myers 2012-05-07  v1.0
+    Updated S.T. Myers 2012-05-14  v1.1 add corrtype
+    Updated S.T. Myers 2012-06-27  v1.2 add corrdesc lookup
+    Updated S.T. Myers 2012-11-13  v2.0 STM casa 4.0 new calls
     """
-
     # dictionary with lookup for correlation strings
     # from http://casa.nrao.edu/docs/doxygen/html/classcasa_1_1Stokes.html
     cordesclist = ['Undefined',
@@ -414,36 +406,19 @@ def buildscans(msfile):
     # Usage: find desc for an index, e.g. cordesclist[corrtype]
     #        find index for a desc, e.g. cordesclist.index(corrdesc)
     #
-    
-    #try:
-    #    import casac
-    #except ImportError, e:
-    #    print "failed to load casa:\n", e
-    #    exit(1)
-    #mstool = casac.homefinder.find_home_by_name('msHome')
-    #ms = casac.ms = mstool.create()
-    #tbtool = casac.homefinder.find_home_by_name('tableHome')
-    #tb = casac.tb = tbtool.create()
-    ms = casac.ms()
-    tb = casac.table()
+    ms = mstool()
+    tb = table()
 
     # Access the MS
     try:
         ms.open(msfile,nomodify=True)
     except:
-        print "ERROR: failed to open ms tool on file "+msfile
+        print(f"ERROR: failed to open ms tool on file {msfile}")
         exit(1)
 
-    print 'Getting scansummary from MS'
-    # get the scan summary using ms.getscansummary method
-    #mysc = ms.getscansummary()
+    print('Getting scansummary from MS')
     scd = ms.getscansummary()
 
-    # #nscans = len( mysc['summary'].keys() )
-    # nscans = len( scd.keys() )
-    # print 'Found '+str(nscans)+' scans'
-
-    #
     # Find number of data description IDs
     tb.open(msfile+"/DATA_DESCRIPTION")
     ddspwarr=tb.getcol("SPECTRAL_WINDOW_ID")
@@ -452,7 +427,7 @@ def buildscans(msfile):
     ddspwlist = ddspwarr.tolist()
     ddpollist = ddpolarr.tolist()
     ndd = len(ddspwlist)
-    print 'Found '+str(ndd)+' DataDescription IDs'
+    print(f'Found {ndd} DataDescription IDs')
     #
     # The SPECTRAL_WINDOW table
     tb.open(msfile+"/SPECTRAL_WINDOW")
@@ -467,7 +442,7 @@ def buildscans(msfile):
         spwlookup[isp]['nchan'] = nchanarr[isp]
         spwlookup[isp]['name'] = str( spwnamearr[isp] )
         spwlookup[isp]['reffreq'] = reffreqarr[isp]
-    print 'Extracted information for '+str(nspw)+' SpectralWindows'
+    print('Extracted information for '+str(nspw)+' SpectralWindows')
     #
     # Now the polarizations (number of correlations in each pol id
     tb.open(msfile+"/POLARIZATION")
@@ -493,7 +468,7 @@ def buildscans(msfile):
     # for alma this would be 9,10,11,12 for XX,XY,YX,YY respectively
     # cordesc are the strings associated with the types (enum for casa)
     tb.close()
-    print 'Extracted information for '+str(npols)+' Polarization Setups'
+    print('Extracted information for '+str(npols)+' Polarization Setups')
     #
     # Build the DD index
     #
@@ -521,7 +496,7 @@ def buildscans(msfile):
     intentlist = intentarr.tolist()
     subscanlist = subscanarr.tolist()
     nstates = intentlist.__len__()
-    print 'Found '+str(nstates)+' StateIds'
+    print('Found '+str(nstates)+' StateIds')
     #
     # Now get FIELD table directions
     tb.open(msfile+"/FIELD")
@@ -557,7 +532,7 @@ def buildscans(msfile):
         rect = ms.getdata(["time","field_id","scan_number"],ifraxis=True)
         nt = rect['time'].shape[0]
         ntottimes+=nt
-        print 'Found '+str(nt)+' times in DD='+str(idd)
+        print('Found '+str(nt)+' times in DD='+str(idd))
         #
         timdict[idd] = {}
         timdict[idd]['time'] = rect['time']
@@ -567,10 +542,10 @@ def buildscans(msfile):
         for it in range(nt):
             isc = rect['scan_number'][it]
             tim = rect['time'][it]
-            if ddlookup.has_key(isc):
+            if isc in ddlookup:
                 if ddlookup[isc].count(idd)<1:
                     ddlookup[isc].append(idd)
-                if ddscantimes[isc].has_key(idd):
+                if idd in ddscantimes[isc]:
                     ddscantimes[isc][idd].append(tim)
                 else:
                     ddscantimes[isc][idd] = [tim]
@@ -578,13 +553,13 @@ def buildscans(msfile):
                 ddlookup[isc] = [idd]
                 ddscantimes[isc] = {}
                 ddscantimes[isc][idd] = [tim]
-        
+
     #
-    print 'Found total '+str(ntottimes)+' times'
+    print('Found total '+str(ntottimes)+' times')
 
     ms.close()
 
-    # compile a list of scan times 
+    # compile a list of scan times
     #
     #scd = mysc['summary']
     scanlist = []
@@ -598,14 +573,14 @@ def buildscans(msfile):
     scanlist.sort()
 
     nscans = len(scanlist)
-    print 'Found '+str(nscans)+' scans min='+str(min(scanlist))+' max='+str(max(scanlist))
+    print('Found '+str(nscans)+' scans min='+str(min(scanlist))+' max='+str(max(scanlist)))
 
     scantimes = []
     scandict = {}
 
     # Put DataDescription lookup into dictionary
     scandict['DataDescription'] = ddindex
-        
+
     # Put Scan information in dictionary
     scandict['Scans'] = {}
     for isc in scanlist:
@@ -658,31 +633,27 @@ def buildscans(msfile):
         # DDs for this scan
         ddlist = ddlookup[isc]
         scandict['Scans'][isc]['dd'] = ddlist
-        
+
         # number of polarizations for this list of dds
         ddnpollist = []
         for idd in ddlist:
             npol = ddindex[idd]['npol']
             ddnpollist.append(npol)
         scandict['Scans'][isc]['npol'] = ddnpollist
-        
+
         # visibility times per dd in this scan
         #
         scandict['Scans'][isc]['times'] = {}
         for idd in ddlist:
             scandict['Scans'][isc]['times'][idd] = ddscantimes[isc][idd]
-        
-    mysize = scandict.__sizeof__()
-    print 'Size of scandict in memory is '+str(mysize)+' bytes'
-    
-    return scandict
-# Done
 
-def getBCalStatistics(calTable,innerbuff=0.1):
+    mysize = scandict.__sizeof__()
+    print('Size of scandict in memory is '+str(mysize)+' bytes')
+    return scandict
+
+
+def getBCalStatistics(calTable, innerbuff=0.1):
     """
-    Version 2012-11-20 v1.0 STM casa 4.0 version
-    Version 2012-12-17 v1.0 STM casa 4.1 version, phase, real, imag stats
-    
     This method will look at the specified B calibration table and return the
     statistics of unflagged solutions for each Antenna, SPW, Poln.  This assumes
     that the specified cal table will not have any channel dependent flagging.
@@ -692,13 +663,13 @@ def getBCalStatistics(calTable,innerbuff=0.1):
     the order specified in the Cal Table.
 
     Input:
-  
+
          calTable  -  name of MS
          innerbuff -  fraction of spw bandwidth to ignore at each edge
                       (<0.5, default=0.1 use inner 80% of channels each spw)
-  
+
     Output: OutDict (return value)
-  
+
     STM 2012-11-19 dictionary structure:
     key: 'antspw' indexed by antenna and spectral window id per poln
              ['antspw'][<antid>][<spwid>][<polid>]
@@ -715,13 +686,14 @@ def getBCalStatistics(calTable,innerbuff=0.1):
        ['antDict'][ant] the name of antenna with index ant
        ['spwDict'][spw] {'RX':rx, 'Baseband':bb, 'Subband':sb} correspoding to a given spw
        ['rxBasebandDict'][rx][bb] list of spws corresponding to a given rx and bb
-       
+
     Example:
 
+    ```
     !cp /home/sandrock2/smyers/casa/pipeline/pipeline4.1/lib_EVLApipeutils.py .
     from lib_EVLApipeutils import getBCalStatistics
     result = getBCalStatistics('testBPcal.b')
-    
+
     This is a B Jones table, proceeding
     Found 1 Rx bands
     Rx band EVLA_K has basebands: ['A0C0', 'B0D0']
@@ -731,63 +703,63 @@ def getBCalStatistics(calTable,innerbuff=0.1):
     Found 0 total solutions with 42619 good (unflagged)
 
         AntID      AntName      Rx-band      Baseband    min/max(all)  min/max(inner) ALERT?
-            0         ea01       EVLA_K         A0C0        0.3541        0.3575 
-            0         ea01       EVLA_K         B0D0        0.4585        0.4591 
-            1         ea02       EVLA_K         A0C0        0.3239        0.3298 
-            1         ea02       EVLA_K         B0D0        0.2130        0.2179 
-            2         ea03       EVLA_K         A0C0        0.3097        0.3124 
-            2         ea03       EVLA_K         B0D0        0.3247        0.3282 
-            3         ea04       EVLA_K         A0C0        0.3029        0.3055 
-            3         ea04       EVLA_K         B0D0        0.2543        0.2543 
-            4         ea05       EVLA_K         A0C0        0.2657        0.2715 
-            4         ea05       EVLA_K         B0D0        0.2336        0.2357 
-            5         ea06       EVLA_K         A0C0        0.3474        0.3501 
-            5         ea06       EVLA_K         B0D0        0.2371        0.2398 
-            6         ea07       EVLA_K         A0C0        0.2294        0.2322 
-            6         ea07       EVLA_K         B0D0        0.3684        0.3690 
-            7         ea08       EVLA_K         A0C0        0.2756        0.2809 
-            7         ea08       EVLA_K         B0D0        0.5269        0.5269 
-            8         ea10       EVLA_K         A0C0        0.2617        0.2686 
-            8         ea10       EVLA_K         B0D0        0.2362        0.2407 
-            9         ea11       EVLA_K         A0C0        0.2594        0.2607 
-            9         ea11       EVLA_K         B0D0        0.3015        0.3111 
-           10         ea12       EVLA_K         A0C0        0.2418        0.2491 
-           10         ea12       EVLA_K         B0D0        0.3839        0.3849 
-           11         ea13       EVLA_K         A0C0        0.3017        0.3156 
-           11         ea13       EVLA_K         B0D0        0.3299        0.3299 
-           12         ea14       EVLA_K         A0C0        0.2385        0.2415 
-           12         ea14       EVLA_K         B0D0        0.2081        0.2101 
-           13         ea15       EVLA_K         A0C0        0.3118        0.3151 
-           13         ea15       EVLA_K         B0D0        0.1749        0.1844 * 
-           14         ea16       EVLA_K         A0C0        0.2050        0.2051 
-           14         ea16       EVLA_K         B0D0        0.4386        0.4537 
-           15         ea17       EVLA_K         A0C0        0.4084        0.4107 
-           15         ea17       EVLA_K         B0D0        0.2151        0.2189 
-           16         ea18       EVLA_K         A0C0        0.3124        0.3147 
-           16         ea18       EVLA_K         B0D0        0.3712        0.3730 
-           17         ea19       EVLA_K         A0C0        0.3084        0.3132 
-           17         ea19       EVLA_K         B0D0        0.2453        0.2522 
-           18         ea20       EVLA_K         A0C0        0.4618        0.4672 
-           18         ea20       EVLA_K         B0D0        0.2772        0.2790 
-           19         ea21       EVLA_K         A0C0        0.3971        0.4032 
-           19         ea21       EVLA_K         B0D0        0.2812        0.2818 
-           20         ea22       EVLA_K         A0C0        0.2495        0.2549 
-           20         ea22       EVLA_K         B0D0        0.3777        0.3833 
-           21         ea23       EVLA_K         A0C0        0.3213        0.3371 
-           21         ea23       EVLA_K         B0D0        0.2702        0.2787 
-           22         ea24       EVLA_K         A0C0        0.2470        0.2525 
-           22         ea24       EVLA_K         B0D0        0.0127        0.0127 *** 
-           23         ea25       EVLA_K         A0C0        0.3173        0.3205 
-           23         ea25       EVLA_K         B0D0        0.0056        0.0066 *** 
-           24         ea26       EVLA_K         A0C0        0.3505        0.3550 
-           24         ea26       EVLA_K         B0D0        0.4028        0.4071 
-           25         ea27       EVLA_K         A0C0        0.3165        0.3244 
-           25         ea27       EVLA_K         B0D0        0.2644        0.2683 
-           26         ea28       EVLA_K         A0C0        0.1695        0.1712 * 
-           26         ea28       EVLA_K         B0D0        0.3213        0.3318 
+            0         ea01       EVLA_K         A0C0        0.3541        0.3575
+            0         ea01       EVLA_K         B0D0        0.4585        0.4591
+            1         ea02       EVLA_K         A0C0        0.3239        0.3298
+            1         ea02       EVLA_K         B0D0        0.2130        0.2179
+            2         ea03       EVLA_K         A0C0        0.3097        0.3124
+            2         ea03       EVLA_K         B0D0        0.3247        0.3282
+            3         ea04       EVLA_K         A0C0        0.3029        0.3055
+            3         ea04       EVLA_K         B0D0        0.2543        0.2543
+            4         ea05       EVLA_K         A0C0        0.2657        0.2715
+            4         ea05       EVLA_K         B0D0        0.2336        0.2357
+            5         ea06       EVLA_K         A0C0        0.3474        0.3501
+            5         ea06       EVLA_K         B0D0        0.2371        0.2398
+            6         ea07       EVLA_K         A0C0        0.2294        0.2322
+            6         ea07       EVLA_K         B0D0        0.3684        0.3690
+            7         ea08       EVLA_K         A0C0        0.2756        0.2809
+            7         ea08       EVLA_K         B0D0        0.5269        0.5269
+            8         ea10       EVLA_K         A0C0        0.2617        0.2686
+            8         ea10       EVLA_K         B0D0        0.2362        0.2407
+            9         ea11       EVLA_K         A0C0        0.2594        0.2607
+            9         ea11       EVLA_K         B0D0        0.3015        0.3111
+           10         ea12       EVLA_K         A0C0        0.2418        0.2491
+           10         ea12       EVLA_K         B0D0        0.3839        0.3849
+           11         ea13       EVLA_K         A0C0        0.3017        0.3156
+           11         ea13       EVLA_K         B0D0        0.3299        0.3299
+           12         ea14       EVLA_K         A0C0        0.2385        0.2415
+           12         ea14       EVLA_K         B0D0        0.2081        0.2101
+           13         ea15       EVLA_K         A0C0        0.3118        0.3151
+           13         ea15       EVLA_K         B0D0        0.1749        0.1844 *
+           14         ea16       EVLA_K         A0C0        0.2050        0.2051
+           14         ea16       EVLA_K         B0D0        0.4386        0.4537
+           15         ea17       EVLA_K         A0C0        0.4084        0.4107
+           15         ea17       EVLA_K         B0D0        0.2151        0.2189
+           16         ea18       EVLA_K         A0C0        0.3124        0.3147
+           16         ea18       EVLA_K         B0D0        0.3712        0.3730
+           17         ea19       EVLA_K         A0C0        0.3084        0.3132
+           17         ea19       EVLA_K         B0D0        0.2453        0.2522
+           18         ea20       EVLA_K         A0C0        0.4618        0.4672
+           18         ea20       EVLA_K         B0D0        0.2772        0.2790
+           19         ea21       EVLA_K         A0C0        0.3971        0.4032
+           19         ea21       EVLA_K         B0D0        0.2812        0.2818
+           20         ea22       EVLA_K         A0C0        0.2495        0.2549
+           20         ea22       EVLA_K         B0D0        0.3777        0.3833
+           21         ea23       EVLA_K         A0C0        0.3213        0.3371
+           21         ea23       EVLA_K         B0D0        0.2702        0.2787
+           22         ea24       EVLA_K         A0C0        0.2470        0.2525
+           22         ea24       EVLA_K         B0D0        0.0127        0.0127 ***
+           23         ea25       EVLA_K         A0C0        0.3173        0.3205
+           23         ea25       EVLA_K         B0D0        0.0056        0.0066 ***
+           24         ea26       EVLA_K         A0C0        0.3505        0.3550
+           24         ea26       EVLA_K         B0D0        0.4028        0.4071
+           25         ea27       EVLA_K         A0C0        0.3165        0.3244
+           25         ea27       EVLA_K         B0D0        0.2644        0.2683
+           26         ea28       EVLA_K         A0C0        0.1695        0.1712 *
+           26         ea28       EVLA_K         B0D0        0.3213        0.3318
 
     result['antband'][22]['EVLA_K']['B0D0']
-       Out: 
+       Out:
          {'all': {'amp': {'max': 3.3507643208628997,
                           'mean': 1.2839660621605888,
                           'min': 0.042473547230042749,
@@ -830,7 +802,7 @@ def getBCalStatistics(calTable,innerbuff=0.1):
 
 
     result['antspw'][22][10]
-       Out: 
+       Out:
          {0: {'all': {'amp': {'max': 3.3507643208628997,
                               'mean': 1.6887832659451747,
                               'min': 0.054888048286296932,
@@ -903,15 +875,20 @@ def getBCalStatistics(calTable,innerbuff=0.1):
                                  'min': array(0.92740714550018311),
                                  'var': 0.19275019403126262},
                         'total': 51}}}
+    ```
 
     NOTE: You can see the problem is in poln 0 of this spw from the amp range and phase.
 
+    Changelog
+    ---------
+    Version 2012-11-20 v1.0 STM casa 4.0 version
+    Version 2012-12-17 v1.0 STM casa 4.1 version, phase, real, imag stats
     """
     # define range for "inner" channels
-    if innerbuff>=0.0 and innerbuff<0.5:
-        fcrange = [innerbuff,1.0-innerbuff]
+    if innerbuff >= 0.0 and innerbuff < 0.5:
+        fcrange = [innerbuff, 1.0-innerbuff]
     else:
-        fcrange = [0.1,0.9]
+        fcrange = [0.1, 0.9]
 
     # Print extra information here?
     doprintall = False
@@ -919,22 +896,18 @@ def getBCalStatistics(calTable,innerbuff=0.1):
     # Create the output dictionary
     outDict = {}
 
-    #from taskinit import tbtool
-    #mytb = tbtool.create()
-    mytb = casac.table()
+    mytb = table()
 
-    import pylab as pl
-    
     mytb.open(calTable)
 
     # Check that this is a B Jones table
     caltype = mytb.getkeyword('VisCal')
     if caltype=='B Jones':
-        print 'This is a B Jones table, proceeding'
+        print('This is a B Jones table, proceeding')
     else:
-        print 'This is NOT a B Jones table, aborting'
+        print('This is NOT a B Jones table, aborting')
         return outDict
-    
+
     antCol = mytb.getcol('ANTENNA1')
     spwCol = mytb.getcol('SPECTRAL_WINDOW_ID')
     fldCol = mytb.getcol('FIELD_ID')
@@ -976,19 +949,19 @@ def getBCalStatistics(calTable,innerbuff=0.1):
         spwDict[ispw] = {'RX':rx, 'Baseband':bb, 'Subband':sb}
         if rxbands.count(rx)<1:
             rxbands.append(rx)
-        if rxBasebandDict.has_key(rx):
-            if rxBasebandDict[rx].has_key(bb):
+        if rx in rxBasebandDict:
+            if bb in rxBasebandDict[rx]:
                 rxBasebandDict[rx][bb].append(ispw)
             else:
                 rxBasebandDict[rx][bb] = [ispw]
         else:
             rxBasebandDict[rx] = {}
             rxBasebandDict[rx][bb] = [ispw]
-    
-    print 'Found '+str(len(rxbands))+' Rx bands'
+
+    print('Found '+str(len(rxbands))+' Rx bands')
     for rx in rxBasebandDict.keys():
         bblist = rxBasebandDict[rx].keys()
-        print 'Rx band '+str(rx)+' has basebands: '+str(bblist)
+        print('Rx band '+str(rx)+' has basebands: '+str(bblist))
 
     # Initialize a list to hold the results
     # Get shape of FLAG
@@ -1028,13 +1001,13 @@ def getBCalStatistics(calTable,innerbuff=0.1):
         rx = spwDict[spwIdx]['RX']
         bb = spwDict[spwIdx]['Baseband']
         sb = spwDict[spwIdx]['Subband']
-        
+
         # Set up dictionaries if needed
         parts = ['all','inner']
         quants = ['amp','phase','real','imag']
         vals = ['min','max','mean','var']
-        if outDict['antspw'].has_key(antIdx):
-            if not outDict['antspw'][antIdx].has_key(spwIdx):
+        if antIdx in outDict['antspw']:
+            if spwIdx not in outDict['antspw'][antIdx]:
                 outDict['antspw'][antIdx][spwIdx] = {}
                 for poln in range(np):
                     outDict['antspw'][antIdx][spwIdx][poln] = {}
@@ -1046,8 +1019,8 @@ def getBCalStatistics(calTable,innerbuff=0.1):
                             outDict['antspw'][antIdx][spwIdx][poln][part][quan] = {}
                             for val in vals:
                                 outDict['antspw'][antIdx][spwIdx][poln][part][quan][val] = 0.0
-            if outDict['antband'][antIdx].has_key(rx):
-                if not outDict['antband'][antIdx][rx].has_key(bb):
+            if rx in outDict['antband'][antIdx]:
+                if bb not in outDict['antband'][antIdx][rx]:
                     outDict['antband'][antIdx][rx][bb] = {}
                     for part in parts:
                         outDict['antband'][antIdx][rx][bb][part] = {}
@@ -1122,10 +1095,10 @@ def getBCalStatistics(calTable,innerbuff=0.1):
                 else:
                     cx = dataArr[poln][chan][iid]
                     # get quantities from complex data
-                    ampx = pl.absolute(cx)
-                    phasx = pl.angle(cx,deg=True)
-                    realx = pl.real(cx)
-                    imagx = pl.imag(cx)
+                    ampx = numpy.absolute(cx)
+                    phasx = numpy.angle(cx,deg=True)
+                    realx = numpy.real(cx)
+                    imagx = numpy.imag(cx)
                     #
                     # put in dictionary
                     cdict = {}
@@ -1233,8 +1206,8 @@ def getBCalStatistics(calTable,innerbuff=0.1):
                                 qy = ny*vary + (vy-meany)*(vy-runy)
                                 outDict['antband'][antIdx][rx][bb]['inner'][quan]['var'] = qy/float(ny+1)
                             outDict['antband'][antIdx][rx][bb]['inner']['number'] += 1
-                        
-                            
+
+
             npflagged = float(ncflagged)/float(nc)
             nflagged += float(ncflagged)/float(nc)
             ngood += ncgood
@@ -1244,14 +1217,14 @@ def getBCalStatistics(calTable,innerbuff=0.1):
     outDict['antDict'] = antDict
     outDict['spwDict'] = spwDict
     outDict['rxBasebandDict'] = rxBasebandDict
-        
+
     # Print summary
-    print 'Within all channels:'
-    print 'Found '+str(ntotal)+' total solutions with '+str(ngood)+' good (unflagged)'
-    print 'Within inner '+str(fcrange[1]-fcrange[0])+' of channels:'
-    print 'Found '+str(ninner)+' total solutions with '+str(ninnergood)+' good (unflagged)'
-    print ''
-    print '        AntID      AntName      Rx-band      Baseband    min/max(all)  min/max(inner) ALERT?'
+    print('Within all channels:')
+    print('Found '+str(ntotal)+' total solutions with '+str(ngood)+' good (unflagged)')
+    print('Within inner '+str(fcrange[1]-fcrange[0])+' of channels:')
+    print('Found '+str(ninner)+' total solutions with '+str(ninnergood)+' good (unflagged)')
+    print('')
+    print('        AntID      AntName      Rx-band      Baseband    min/max(all)  min/max(inner) ALERT?')
     #
     # Print more?
     if doprintall:
@@ -1263,24 +1236,23 @@ def getBCalStatistics(calTable,innerbuff=0.1):
                     xmax = outDict['antband'][ant][rx][bb]['all']['amp']['max']
                     ymin = outDict['antband'][ant][rx][bb]['inner']['amp']['min']
                     ymax = outDict['antband'][ant][rx][bb]['inner']['amp']['max']
-                    if xmax!=0.0:
-                        xrat = xmin/xmax
+                    if xmax != 0.0:
+                        xrat = xmin / xmax
                     else:
                         xrat = -1
-                    if ymax!=0.0:
-                        yrat = ymin/ymax
+                    if ymax != 0.0:
+                        yrat = ymin / ymax
                     else:
                         yrat = -1
                     #
-                    if yrat<0.05:
-                        print ' %12s %12s %12s %12s  %12.4f  %12.4f *** ' % (ant,antName,rx,bb,xrat,yrat)
-                    elif yrat<0.1:
-                        print ' %12s %12s %12s %12s  %12.4f  %12.4f ** ' % (ant,antName,rx,bb,xrat,yrat)
-                    elif yrat<0.2:
-                        print ' %12s %12s %12s %12s  %12.4f  %12.4f * ' % (ant,antName,rx,bb,xrat,yrat)
+                    if yrat < 0.05:
+                        print(' %12s %12s %12s %12s  %12.4f  %12.4f *** ' % (ant,antName,rx,bb,xrat,yrat))
+                    elif yrat < 0.1:
+                        print(' %12s %12s %12s %12s  %12.4f  %12.4f ** ' % (ant,antName,rx,bb,xrat,yrat))
+                    elif yrat < 0.2:
+                        print(' %12s %12s %12s %12s  %12.4f  %12.4f * ' % (ant,antName,rx,bb,xrat,yrat))
                     else:
-                        print ' %12s %12s %12s %12s  %12.4f  %12.4f ' % (ant,antName,rx,bb,xrat,yrat)
-    
+                        print(' %12s %12s %12s %12s  %12.4f  %12.4f ' % (ant,antName,rx,bb,xrat,yrat))
     return outDict
 
 
