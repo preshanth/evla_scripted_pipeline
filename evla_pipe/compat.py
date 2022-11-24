@@ -26,20 +26,18 @@
 #              Socorro, NM,  USA
 #
 ######################################################################
+"""
+Helper functions for compatibility across CASA versions and monolithic/modular
+frameworks.
+"""
 
-import os
-import warnings
-
-from casatasks import version
-
-
-__version__ = (2, 0, 0)
-print(f"EVLA scripted pipeline v{__version__} tested on CASA 6.1.0-118.")
-
-casa_version = tuple(version())
-if casa_version[0] != 6:
-    raise RuntimeError("This scripted pipeline is built for use with CASA 6.")
-if casa_version > (6, 1, 0, 0):
-    warnings.warn("The scripted pipeline has only been tested up to CASA v6.1.0.")
+# The `casalog` symbol is a built-in in the monolithic CASA namespace. If it
+# doesn't exist, then that means we are using modular CASA in a user's Python
+# environment.
+try:
+    casalog
+    running_within_casa = True
+except NameError:
+    running_within_casa = False
 
 

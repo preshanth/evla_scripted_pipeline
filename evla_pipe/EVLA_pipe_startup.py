@@ -31,8 +31,7 @@
 # the current directory, and that this directory contains only files
 # relating to this dataset.
 
-logprint ("Starting EVLA_pipe_startup.py", logfileout='logs/startup.log')
-logprint ("SVN revision "+svnrevision, logfileout='logs/startup.log')
+logprint("Starting EVLA_pipe_startup.py", logfileout='logs/startup.log')
 
 
 import os
@@ -54,38 +53,28 @@ import copy
 import string
 
 def interrupt(message=''):
-    """Exit if interrupted
-    """
     logprint('Keyboard Interrupt')
 
 def pipeline_save(shelf_filename='pipeline_shelf.restore'):
-    '''Save the state of the pipeline
-    '''
     if not os.path.exists(shelf_filename):
         pipe_shelf = shelve.open(shelf_filename, 'n')
     else:
         pipe_shelf = shelve.open(shelf_filename)
 
     try:
-        keys = [k for k in open(pipepath+'EVLA_pipe_restore.list').read().split('\n') if k]
-    except Exception, e:
-        logprint ("Problem with opening keys for pipeline restart: "+str(e))
-
-    for key in keys:
-        try:
-            pipe_shelf[key] = globals()[key]
-            key_status = True
-        except:
-            key_status = False
+        list_text = open(pipepath+'EVLA_pipe_restore.list').read()
+        keys = [k for k in list_text.split("\n") if k]
+    except Exception as e:
+        logprint("Problem with opening keys for pipeline restart: "+str(e))
 
     pipe_shelf.close()
 
 
 
 
-logprint ("EVLA prototype pipeline reduction", 'logs/startup.log')
-logprint ("version " + version + " created on " + date, 'logs/startup.log')
-logprint ("running from path: " + pipepath, 'logs/startup.log')
+logprint("EVLA prototype pipeline reduction", 'logs/startup.log')
+logprint("version " + version + " created on " + date, 'logs/startup.log')
+logprint("running from path: " + pipepath, 'logs/startup.log')
 
 
 
@@ -128,21 +117,21 @@ if (SDM_name_already_defined):
 
 if not os.path.isdir(msname):
     while not os.path.isdir(SDM_name) and not os.path.isdir(msname):
-        print SDM_name+" is not a valid SDM directory"
-        SDM_name=raw_input("Re-enter a valid SDM directory (without '.ms'): ")
-        SDM_name=SDM_name.rstrip('/')
+        print(SDM_name+" is not a valid SDM directory")
+        SDM_name = input("Re-enter a valid SDM directory (without '.ms'): ")
+        SDM_name = SDM_name.rstrip('/')
         if SDM_name.endswith('.ms'):
             SDM_name = SDM_name[:-3]
-        msname=SDM_name+'.ms'
+        msname = SDM_name+'.ms'
 
-mshsmooth=SDM_name+'.hsmooth.ms'
-if (SDM_name_already_defined):
+mshsmooth = SDM_name+'.hsmooth.ms'
+if SDM_name_already_defined:
     mshsmooth = mshsmooth.replace('rawdata', 'working')
-ms_spave=SDM_name+'.spave.ms'
-if (SDM_name_already_defined):
+ms_spave = SDM_name + '.spave.ms'
+if SDM_name_already_defined:
     ms_spave = ms_spave.replace('rawdata', 'working')
 
-logprint ("SDM used is: " + SDM_name, logfileout='logs/startup.log')
+logprint("SDM used is: " + SDM_name, logfileout='logs/startup.log')
 
 # Other inputs:
 
@@ -202,5 +191,5 @@ except NameError:
 # not want to do more smoothing on restarts, so note that this parameter
 # is reset to "n" after doing the smoothing in EVLA_pipe_hanning.py.
 
-logprint ("Finished EVLA_pipe_startup.py", logfileout='logs/startup.log')
+logprint("Finished EVLA_pipe_startup.py", logfileout='logs/startup.log')
 

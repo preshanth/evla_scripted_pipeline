@@ -39,9 +39,6 @@ me = measures()
 qa = quanta()
 msmd = msmetadata()
 
-# FIXME Requires:
-# - getCalFlaggedSoln
-
 
 def uniq(inlist):
     return np.unique(inlist).tolist()
