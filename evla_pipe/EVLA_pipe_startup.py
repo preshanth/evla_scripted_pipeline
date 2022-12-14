@@ -120,8 +120,8 @@ try:
     myHanning
 except NameError:
     myHanning_already_set = 0
-    myHanning = input("Hanning smooth the data (y/[n]): ").lower()
-    myHanning = "n" if myHanning != "y" else myHanning
+    hanning_input_results = input("Hanning smooth the data (y/[n]): ").lower()
+    do_hanning = hanning_input_results not in ("", "n")
 
 ms_active = msname
 

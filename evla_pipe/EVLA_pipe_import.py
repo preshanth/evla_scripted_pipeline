@@ -28,7 +28,6 @@
 ######################################################################
 
 import os
-import glob
 import shutil
 
 from casatasks import importasdm
@@ -36,12 +35,13 @@ from casatasks import importasdm
 from .utils import (runtiming, logprint, pipeline_save)
 
 
-logprint("Starting EVLA_pipe_import.py", logfileout="logs/import.log")
+logfileout = "logs/import.log"
+logprint("Starting EVLA_pipe_import.py", logfileout=logfileout)
 time_list = runtiming("import", "start")
 QA2_import = "Pass"
 
 if not os.path.exists(msname):
-    logprint("Creating measurement set", logfileout="logs/import.log")
+    logprint("Creating measurement set", logfileout=logfileout)
     importasdm(
         asdm=SDM_name,
         vis=msname,
@@ -60,21 +60,21 @@ if not os.path.exists(msname):
         #process_pointing=True,
         #process_caldevice=True,
     )
-    logprint(f"Measurement set '{msname}' created", logfileout="logs/import.log")
+    logprint(f"Measurement set '{msname}' created", logfileout=logfileout)
     logprint("Copying xml files to the output ms")
     for xml_file in ("Flag", "Antenna", "SpectralWindow"):
         shutil.copy2(f"{SDM_name}/{xml_file}.xml", f"{msname}/")
 else:
     logprint(
             f"Measurement set already exists, will use '{msname}'",
-            logfileout="logs/import.log",
+            logfileout=logfileout,
     )
 
 # Until we understand better the possible failure modes to look for
 # in this script, leave QA2 set to "Pass".
 
-logprint("Finished EVLA_pipe_import.py", logfileout="logs/import.log")
-logprint(f"QA2 score: {QA2_import}", logfileout="logs/import.log")
+logprint("Finished EVLA_pipe_import.py", logfileout=logfileout)
+logprint(f"QA2 score: {QA2_import}", logfileout=logfileout)
 time_list = runtiming("import", "end")
 
 pipeline_save()

@@ -83,11 +83,11 @@ def run_pipeline():
         # projects, but Hanning may be important if there is strong narrowband RFI.
         exec_script("EVLA_pipe_hanning", **context)
 
-        return  # XXX
         # Get information from the MS that will be needed later, list the data, and
         # write generic diagnostic plots.
         execfile(pipepath+'EVLA_pipe_msinfo.py')
 
+        return  # XXX
         # Deterministic flagging: (1) time-based for online flags, shadowed data,
         # zeroes, pointing scans, quacking, and (2) channel-based for end 5% of
         # channels of each SpW, 10 end channels at edges of basebands.
@@ -166,6 +166,6 @@ def run_pipeline():
 
         # Write weblog.
         execfile(pipepath+'EVLA_pipe_weblog.py')
-    except KeyboardInterrupt as keyboardException:
-        logprint("Keyboard Interrupt: " + str(keyboardException))
+    except KeyboardInterrupt as e:
+        logprint(f"Keyboard Interrupt: {e}")
 

@@ -26,59 +26,45 @@
 #              Socorro, NM,  USA
 #
 ######################################################################
-
-# HANNING SMOOTH (OPTIONAL, IMPORTANT IF THERE IS NARROWBAND RFI)
-# NB: Steve points out that really you want to do Hanning smoothing
-# only after a delay calibration, to avoid decorrelation
-# NB: myHanning is set to "n" by default, but this should be enabled
-# for the user to choose during reprocessing
-# 04/13/16 E. Momjian: hanning smoothing is now mstransform based
-#                      and does not allow overwriting the input MS.
-#                      Using B.K.'s code to replace the input MS with
-#                      the task's output MS.
-#                      Also, copying *.xml to the output MS for 
-#                      flagcmd not to fail as it needs Flags.xml
-
-import shutil
-import glob
 import os
+import shutil
+from glob import glob
 
-logprint ("Starting EVLA_pipe_hanning.py", logfileout='logs/hanning.log')
-time_list=runtiming('hanning', 'start')
-QA2_hanning='Pass'
+from casatasks import hanningsmooth
 
-if myHanning.lower() == "y":
-#    if (os.path.exists(mshsmooth) == False):
-        logprint ("Hanning smoothing the data", logfileout='logs/hanning.log')
+from .utils import (runtiming, logprint, pipeline_save)
 
-        default('hanningsmooth')
-        vis=msname
-        datacolumn='data'
-#        outputvis=mshsmooth
-        outputvis='temphanning.ms'
-        hanningsmooth()
-        myHanning="n"
 
-        logprint ('Copying xml files to the output ms')
-        for file in glob.glob(msname+'/*.xml'):
-                shutil.copy2(file , 'temphanning.ms/')
-        logprint ('Removing original VIS '+msname, logfileout='logs/hanning.log')
-        shutil.rmtree(msname)
-        logprint('Renaming temphanning.ms to '+msname, logfileout='logs/hanning.log')
-        os.rename('temphanning.ms', msname)
-        logprint ("Hanning smoothing finished, myHanning parameter reset to 'n' to avoid further smoothing on restarts", logfileout='logs/hanning.log')
-#    else:
-#        logprint ("Hanning smoothed ms set already exists, will use existing ms", logfileout='logs/hanning.log')
+logfileout = "logs/hanning.log"
+logprint("Starting EVLA_pipe_hanning.py", logfileout=logfileout)
+time_list = runtiming('hanning', 'start')
+QA2_hanning = "Pass"
+
+if do_hanning:
+    logprint("Hanning smoothing the data", logfileout=logfileout)
+    hanningsmooth(
+        vis=msname,
+        datacolumn="data",
+        outputvis="temphanning.ms",
+    )
+
+    logprint("Copying xml files to the output ms")
+    for filen in glob(f"{msname}/*.xml"):
+        shutil.copy2(filen , "temphanning.ms/")
+    logprint(f"Removing original VIS {msname}", logfileout=logfileout)
+    shutil.rmtree(msname)
+
+    logprint(f"Renaming temphanning.ms to {msname}", logfileout=logfileout)
+    os.rename("temphanning.ms", msname)
 else:
-    logprint ("NOT Hanning smoothing the data", logfileout='logs/hanning.log')
-
+    logprint("NOT Hanning smoothing the data", logfileout=logfileout)
 
 # Until we know better the possible failures modes of this script,
 # leave set QA2 score set to "Pass".
 
-logprint ("Finished EVLA_pipe_hanning.py", logfileout='logs/hanning.log')
-logprint ("QA2 score: "+QA2_hanning, logfileout='logs/hanning.log')
-
-time_list=runtiming('hanning', 'end')
+logprint("Finished EVLA_pipe_hanning.py", logfileout=logfileout)
+logprint(f"QA2 score: {QA2_hanning}", logfileout=logfileout)
+time_list = runtiming("hanning", "end")
 
 pipeline_save()
+
