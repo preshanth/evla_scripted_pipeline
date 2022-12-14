@@ -27,8 +27,10 @@
 #
 ######################################################################
 
+import os
 import time
 import math
+import shelve
 import urllib
 import datetime
 from pathlib import Path
@@ -46,7 +48,7 @@ msmd = msmetadata()
 
 from .compat import running_within_casa
 
-if running_within_casa:
+if not running_within_casa:
     from casatasks import (flagdata, casalog)
 
 
@@ -79,7 +81,7 @@ class RunTimer:
         self.timing_file = self.log_dir / timing_file
         self.times = []
 
-    def run(self, pipestate, status):
+    def __call__(self, pipestate, status):
         times = self.times
         times.append({
                 'pipestate': pipestate,
@@ -90,11 +92,25 @@ class RunTimer:
             if len(times) < 2:
                 logprint("WARNING Could not write timing, fewer than two measurements.")
             interval = times[-1]['time'] - times[-2]['time']
-            with open(timing_file, "a") as timelog:
+            with open(self.timing_file, "a") as timelog:
                 timelog.write(f"{pipestate}: {interval} sec\n")
         return times
 
-runtimer = RunTimer()
+runtiming = RunTimer()
+
+
+def pipeline_save(filen='pipeline_shelf.restore'):
+    if not os.path.exists(filen):
+        pipe_shelf = shelve.open(filen, 'n')
+    else:
+        pipe_shelf = shelve.open(filen)
+    try:
+        with open(PIPE_PATH / "EVLA_pipe_restore.list") as f:
+            lines = f.read().split("\n")
+        keys = [k for k in lines if k]
+    except Exception as e:
+        logprint(f"Problem with opening keys for pipeline restart: {e}")
+    pipe_shelf.close()
 
 
 def uniq(inlist):

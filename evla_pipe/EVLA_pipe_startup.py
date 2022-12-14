@@ -31,62 +31,29 @@
 # the current directory, and that this directory contains only files
 # relating to this dataset.
 
+from .utils import runtiming
+
 logprint("Starting EVLA_pipe_startup.py", logfileout='logs/startup.log')
+runtiming('startup', 'start')
 
 
 import os
-import subprocess as sp
-import commands
-import numpy as np
-import re
-import time
-from time import gmtime, strftime
-import casa
 import sys
-from math import sin, cos, acos, fabs, pi, e, log10
-import scipy as scp
-import scipy.optimize as scpo
+import time
+import copy
 import pickle
 import shutil
 import shelve
-import copy
 import string
+from time import gmtime, strftime
+from math import sin, cos, acos, fabs, pi, e, log10
 
-def interrupt(message=''):
-    logprint('Keyboard Interrupt')
-
-def pipeline_save(shelf_filename='pipeline_shelf.restore'):
-    if not os.path.exists(shelf_filename):
-        pipe_shelf = shelve.open(shelf_filename, 'n')
-    else:
-        pipe_shelf = shelve.open(shelf_filename)
-
-    try:
-        list_text = open(pipepath+'EVLA_pipe_restore.list').read()
-        keys = [k for k in list_text.split("\n") if k]
-    except Exception as e:
-        logprint("Problem with opening keys for pipeline restart: "+str(e))
-
-    pipe_shelf.close()
+import numpy as np
+import scipy as scp
+import scipy.optimize as scpo
 
 
-
-
-logprint("EVLA prototype pipeline reduction", 'logs/startup.log')
-logprint("version " + version + " created on " + date, 'logs/startup.log')
-logprint("running from path: " + pipepath, 'logs/startup.log')
-
-
-
-# Include functions:
-# selectReferenceAntenna
-# uniq
-
-
-
-
-execfile(pipepath+'EVLA_functions.py')
-execfile(pipepath+'lib_EVLApipeutils.py')
+logprint(f"Running from path: {os.getcwd()}", 'logs/startup.log')
 
 # File names
 #
@@ -99,7 +66,9 @@ try:
     SDM_name
 except NameError:
     SDM_name_already_defined = 0
-    SDM_name=raw_input("Enter SDM file name: ")
+    SDM_name = input("Enter SDM file name: ")
+    if SDM_name == "":
+        raise RuntimeError("SDM name must be given.")
 
 # Trap for '.ms', just in case, also for directory slash if present:
 
@@ -112,12 +81,12 @@ msname=SDM_name+'.ms'
 # the automatic pipeline (the root directory and the relative paths).
 # and also make sure that 'rawdata' only occurs once in the string.
 # but for now, take the quick and easy route.
-if (SDM_name_already_defined):
+if SDM_name_already_defined:
     msname = msname.replace('rawdata', 'working')
 
 if not os.path.isdir(msname):
     while not os.path.isdir(SDM_name) and not os.path.isdir(msname):
-        print(SDM_name+" is not a valid SDM directory")
+        print(f"{SDM_name} is not a valid SDM directory")
         SDM_name = input("Re-enter a valid SDM directory (without '.ms'): ")
         SDM_name = SDM_name.rstrip('/')
         if SDM_name.endswith('.ms'):
@@ -135,35 +104,28 @@ logprint("SDM used is: " + SDM_name, logfileout='logs/startup.log')
 
 # Other inputs:
 
-#Ask if a a real model column should be created, or the virtual model should be used
-
+# Ask if a a real model column should be created, or the virtual model should
+# be used.
 mymodel_already_set = 1
 try:
     mymodel
 except NameError:
     mymodel_already_set = 0
-    mymodel = raw_input("Create the real model column (y/n): ")
-    if mymodel=="y":
-        scratch=True
-    else:
-        scratch=False
+    mymodel = input("Create the real model column (y/[n]): ").lower()
+    mymodel = "n" if mymodel != "y" else mymodel
+    scratch = mymodel == "y"
 
 myHanning_already_set = 1
 try:
     myHanning
 except NameError:
     myHanning_already_set = 0
-    myHanning = raw_input("Hanning smooth the data (y/n): ")
+    myHanning = input("Hanning smooth the data (y/[n]): ").lower()
+    myHanning = "n" if myHanning != "y" else myHanning
 
-#if myHanning=="y":
-#    ms_active=mshsmooth
-#else:
-#    ms_active=msname
+ms_active = msname
 
-ms_active=msname
-
-# and the auxiliary information
-
+# And ask for auxiliary information.
 try:
     projectCode
 except NameError:
@@ -192,4 +154,7 @@ except NameError:
 # is reset to "n" after doing the smoothing in EVLA_pipe_hanning.py.
 
 logprint("Finished EVLA_pipe_startup.py", logfileout='logs/startup.log')
+runtiming('startup', 'end')
+
+pipeline_save()
 

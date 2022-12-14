@@ -27,81 +27,55 @@
 #
 ######################################################################
 
-# IMPORT THE DATA TO CASA
-
-# NB: apply shadow and zero flags, but apply online flags later when
-# tbuff has been determined from the integration time
-# Version 20121108 no flags generated here, do in EVLA_pipe_flagall.py
-
-import shutil
-import glob
 import os
+import glob
+import shutil
 
-logprint ("Starting EVLA_pipe_import.py", logfileout='logs/import.log')
-time_list=runtiming('import', 'start')
-QA2_import='Pass'
+from casatasks import importasdm
 
-if (os.path.exists(msname) == False):
-    logprint ("Creating measurementset", logfileout='logs/import.log')
+from .utils import (runtiming, logprint, pipeline_save)
 
-#    default('importevla')
-#    asdm=SDM_name
-#    vis=msname
-#    ocorr_mode='co'
-#    compression=False
-#    asis=''
-#    scans=''
-#    verbose=True
-#    overwrite=False
-#    online=False
-#    flagzero=False
-#    flagpol=False
-#    shadow=False
-#    tolerance=0.0
-#    addantenna=''
-#    applyflags=False
-#    savecmds=False
-#    flagbackup=False
-#    importevla()
 
-    default('importasdm')
-    asdm=SDM_name
-    vis=msname
-    ocorr_mode='co'
-    compression=False
-    asis=''
-    scans=''
-    verbose=True
-    overwrite=False
-    online=False
-    flagzero=False
-    flagpol=False
-    shadow=False
-    tolerance=0.0
-    addantenna=''
-    applyflags=False
-    process_flags=True
-    savecmds=True
-    outfile = 'onlineFlags.txt'
-    flagbackup=False
-    importasdm()
+logprint("Starting EVLA_pipe_import.py", logfileout="logs/import.log")
+time_list = runtiming("import", "start")
+QA2_import = "Pass"
 
-    logprint ("Measurement set "+msname+" created", logfileout='logs/import.log')
-
-    logprint ('Copying xml files to the output ms')
-    shutil.copy2(SDM_name+'/Flag.xml' , msname+'/')
-    shutil.copy2(SDM_name+'/Antenna.xml' , msname+'/')
-    shutil.copy2(SDM_name+'/SpectralWindow.xml' , msname+'/')
-
+if not os.path.exists(msname):
+    logprint("Creating measurement set", logfileout="logs/import.log")
+    importasdm(
+        asdm=SDM_name,
+        vis=msname,
+        ocorr_mode="co",
+        compression=False,
+        asis="",
+        process_flags=True,
+            applyflags=False,
+            savecmds=True,
+            outfile="onlineFlags.txt",
+        flagbackup=False,
+        overwrite=False,
+        verbose=True,
+        # FIXME keyword arguments in latest versions of CASA
+        #with_pointing_correction=True,
+        #process_pointing=True,
+        #process_caldevice=True,
+    )
+    logprint(f"Measurement set '{msname}' created", logfileout="logs/import.log")
+    logprint("Copying xml files to the output ms")
+    for xml_file in ("Flag", "Antenna", "SpectralWindow"):
+        shutil.copy2(f"{SDM_name}/{xml_file}.xml", f"{msname}/")
 else:
-    logprint ("Measurement set already exists, will use "+msname, logfileout='logs/import.log')
+    logprint(
+            f"Measurement set already exists, will use '{msname}'",
+            logfileout="logs/import.log",
+    )
 
 # Until we understand better the possible failure modes to look for
 # in this script, leave QA2 set to "Pass".
 
-logprint ("Finished EVLA_pipe_import.py", logfileout='logs/import.log')
-logprint ("QA2 score: "+QA2_import, logfileout='logs/import.log')
-time_list=runtiming('import', 'end')
+logprint("Finished EVLA_pipe_import.py", logfileout="logs/import.log")
+logprint(f"QA2 score: {QA2_import}", logfileout="logs/import.log")
+time_list = runtiming("import", "end")
 
 pipeline_save()
 

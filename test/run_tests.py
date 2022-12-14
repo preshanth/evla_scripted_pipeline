@@ -16,8 +16,7 @@ with warnings.catch_warnings() as w:
     from casatools import table
     tb = table()
 
-from evla_pipe import EVLA_functions
-from evla_pipe import lib_EVLApipeutils
+from evla_pipe import utils
 
 
 SDM_NAME = "test.sdm"
@@ -189,7 +188,7 @@ def test_final_amp():
 
 
 def test_find_band():
-    find_band = EVLA_functions.find_EVLA_band
+    find_band = utils.find_EVLA_band
     assert find_band(0.1e9) == "4"
     assert find_band(0.6e9) == "P"
     assert find_band(1.5e9) == "L"
@@ -207,13 +206,13 @@ def test_find_standards():
     positions = field_positions.squeeze().transpose()
     assert np.allclose(positions[:,0], [1.49488453, 1.99893968, 2.27802515])
     assert np.allclose(positions[:,1], [0.87008170, 0.30901538, 0.32453906])
-    standards = EVLA_functions.find_standards(positions)
+    standards = utils.find_standards(positions)
     assert len(standards) == 4
     assert standards == [[], [], [0], []]  # Field 0 is 3C147
 
 
 def test_correct_ant_posns():
-    err_code, antenna, position = EVLA_functions.correct_ant_posns(MS_NAME)
+    err_code, antenna, position = utils.correct_ant_posns(MS_NAME)
     assert err_code == 0
     assert antenna == "ea14"
     assert np.allclose(position, [0.0, -0.0009, -0.0018])
@@ -221,9 +220,9 @@ def test_correct_ant_posns():
 
 def test_spwforfield():
     all_spws = list(range(8))  # [0 .. 7]
-    assert EVLA_functions.spwsforfield(MS_NAME, 0) == all_spws
-    assert EVLA_functions.spwsforfield(MS_NAME, 1) == all_spws
-    assert EVLA_functions.spwsforfield(MS_NAME, 2) == all_spws
+    assert utils.spwsforfield(MS_NAME, 0) == all_spws
+    assert utils.spwsforfield(MS_NAME, 1) == all_spws
+    assert utils.spwsforfield(MS_NAME, 2) == all_spws
 
 
 def test_refantheuristics():
@@ -232,13 +231,13 @@ def test_refantheuristics():
             20, 25, 28, 21, 1, 16, 8, 18, 7,
     ]
     ant_names = [f"ea{i:0>2d}" for i in ant_ids]
-    rah = EVLA_functions.RefAntHeuristics(MS_NAME, field="0", geometry=True, flagging=True)
+    rah = utils.RefAntHeuristics(MS_NAME, field="0", geometry=True, flagging=True)
     test_names = rah.calculate()
     assert test_names == ant_names
 
 
 def test_refantgeometry():
-    rag = EVLA_functions.RefAntGeometry(MS_NAME)
+    rag = utils.RefAntGeometry(MS_NAME)
     test_scores = rag.calc_score()
     assert np.isclose(test_scores["ea01"],  4.5032442956782326)
     assert np.isclose(test_scores["ea02"], 22.662768358818941)
@@ -246,7 +245,7 @@ def test_refantgeometry():
 
 
 def test_refantflagging():
-    raf = EVLA_functions.RefAntFlagging(MS_NAME, "0", "", "")
+    raf = utils.RefAntFlagging(MS_NAME, "0", "", "")
     test_scores = raf.calc_score()
     assert np.isclose(test_scores["ea18"], 26.0)
     assert np.isclose(test_scores["ea01"], 25.864278488633168)
@@ -256,7 +255,7 @@ def test_refantflagging():
 def test_getcalflaggedsoln():
     filen = "final_caltables/finalBPcal.b"
     assert os.path.exists(filen)
-    results = lib_EVLApipeutils.getCalFlaggedSoln(filen)
+    results = utils.getCalFlaggedSoln(filen)
     assert len(results) == 5
     assert np.isclose(results["all"]["flagged"], 42.375)
     assert np.isclose(results["all"]["fraction"], 0.10186298076923077)
@@ -265,7 +264,7 @@ def test_getcalflaggedsoln():
 
 
 def test_buildscans():
-    results = lib_EVLApipeutils.buildscans(MS_NAME)
+    results = utils.buildscans(MS_NAME)
     desc = results["DataDescription"]
     assert len(desc) == 8
     assert desc[0]["corrtype"] == [5, 6, 7, 8]
@@ -281,7 +280,7 @@ def test_buildscans():
 def test_getbcalstats():
     filen = "testBPcal.b"
     assert os.path.exists(filen)
-    results = lib_EVLApipeutils.getBCalStatistics(filen)
+    results = utils.getBCalStatistics(filen)
     assert len(results) == 5
     assert len(results["antspw"]) == 26
     assert len(results["antDict"]) == 26
