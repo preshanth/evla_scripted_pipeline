@@ -76,12 +76,12 @@ def run_pipeline():
         exec_script("EVLA_pipe_startup", **context)
 
         # Import the data to CASA.
-        exec_script("EVLA_pipe_import", **context)
+        #exec_script("EVLA_pipe_import", **context)
 
         # Hanning smooth.
         # NOTE: This step is optional and likely unwanted for spectral line
         # projects, but Hanning may be important if there is strong narrowband RFI.
-        exec_script("EVLA_pipe_hanning", **context)
+        #exec_script("EVLA_pipe_hanning", **context)
 
         # Get information from the MS that will be needed later, list the data, and
         # write generic diagnostic plots.
