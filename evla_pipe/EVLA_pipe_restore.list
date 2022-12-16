@@ -1,5 +1,4 @@
 version
-svnrevision
 date
 log_dir
 maincasalog
@@ -62,7 +61,6 @@ phase_state_IDs
 calibrator_state_IDs
 pointing_state_IDs
 flux_state_select_string
-subtable
 flux_scan_list
 flux_scan_select_string
 flux_field_list
@@ -210,4 +208,3 @@ right_index
 spws_info
 spw_names
 mymodel
-

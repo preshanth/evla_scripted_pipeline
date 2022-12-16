@@ -1,31 +1,3 @@
-######################################################################
-#
-# Copyright (C) 2013
-# Associated Universities, Inc. Washington DC, USA,
-#
-# This library is free software; you can redistribute it and/or modify it
-# under the terms of the GNU Library General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or (at your
-# option) any later version.
-#
-# This library is distributed in the hope that it will be useful, but WITHOUT
-# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Library General Public
-# License for more details.
-#
-# You should have received a copy of the GNU Library General Public License
-# along with this library; if not, write to the Free Software Foundation,
-# Inc., 675 Massachusetts Ave, Cambridge, MA 02139, USA.
-#
-# Correspondence concerning VLA Pipelines should be addressed as follows:
-#    Please register and submit helpdesk tickets via: https://help.nrao.edu
-#    Postal address:
-#              National Radio Astronomy Observatory
-#              VLA Pipeline Support Office
-#              PO Box O
-#              Socorro, NM,  USA
-#
-######################################################################
 # FIXME Many operations in this script could be replaced by functions
 # in the `msmetadata` toolkit instead of using the `table` tool directly.
 
@@ -36,9 +8,10 @@ from casatools import table
 from casatools import ms as mstool
 from casaplotms import plotms
 
+from . import pipeline_save
 from .utils import (
-        uniq, runtiming, logprint, pipeline_save, find_EVLA_band, spwsforfield,
-        find_3C84,
+        uniq, runtiming, logprint, find_EVLA_band, spwsforfield, find_3C84,
+        buildscans,
 )
 
 tb = table()
@@ -417,7 +390,8 @@ calibrator_field_select_string = ",".join(str(ii) for ii in calibrator_field_lis
 tb.close()
 
 
-if ((startdate >= 55918.80) and (startdate <= 55938.98)) or
+# FIXME Additional date ranges likely need to be added here.
+if ((startdate >= 55918.80) and (startdate <= 55938.98)) or \
     ((startdate >= 56253.6) and (startdate <= 56271.6)):
     task_logprint(
             "Weather station broken during this period, using 100% "
@@ -442,7 +416,7 @@ scandict = buildscans(msname)
 corrstring_list = scandict["DataDescription"][0]["corrdesc"]
 removal_list = ["RL", "LR", "XY", "YX"]
 corrstring_list = list(set(corrstring_list).difference(set(removal_list)))
-corrstring = string.join(corrstring_list, ",")
+corrstring = ",".join(corrstring_list)
 task_logprint(f"Correlations shown in plotms will be {corrstring}")
 
 try:
@@ -583,7 +557,6 @@ task_logprint("Antenna positions plot (linear) plotants.png")
 
 task_logprint("Plotting antenna positions (logarithmic)")
 os.system("rm -rf plotantslog.png")
-default("plotants")
 plotants(
         vis=msname,
         logpos=True,

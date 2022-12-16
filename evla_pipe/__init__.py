@@ -28,6 +28,7 @@
 ######################################################################
 
 import os
+import shelve
 import warnings
 from pathlib import Path
 
@@ -49,50 +50,69 @@ if casa_version[:-1] > (6, 1, 0):
 PIPE_PATH = Path(__file__).parent
 
 
-def execfile(filepath, global_vars=None, local_vars=None):
+def pipeline_save(filen="pipeline_shelf.restore"):
+    with shelve.open(filen, "c") as shelf:
+        with open(PIPE_PATH / "EVLA_pipe_restore.list") as f:
+            lines = f.read().split("\n")
+        for key in lines:
+            if key == "":
+                continue
+            try:
+                shelf[key] = globals()[key]
+            except KeyError:
+                pass
+
+
+def pipeline_restore(filen="pipeline_shelf.restore"):
+    if not os.path.exists(filen):
+        raise ValueError(f"Restore point does not exist: {filen}")
+    else:
+        with shelve.open(filen) as shelf:
+            globals().update(shelf)
+
+
+def execfile(filepath, global_vars=None):
     if global_vars is None:
         global_vars = {}
     global_vars.update({
         "__file__": filepath,
         "__name__": "__main__",
     })
-    if local_vars is None:
-        local_vars = locals()
     with open(filepath, "rb") as f:
         source = compile(f.read(), filepath, "exec")
-    exec(source, global_vars, local_vars)
+    exec(source, global_vars, global_vars)
 
 
 def exec_script(name, **kwargs):
-    script_path = str(Path(PIPE_PATH) / f"{name}.py")
+    script_path = str(PIPE_PATH / f"{name}.py")
     execfile(script_path, **kwargs)
 
 
 def run_pipeline():
-    context = {"global_vars": globals(), "local_vars": locals()}
+    context = {"global_vars": globals()}
     try:
         # The following script includes all the definitions and functions and
         # prior inputs needed by a run of the pipeline.
-        exec_script("EVLA_pipe_startup", **context)
+        #exec_script("EVLA_pipe_startup", **context)
 
         # Import the data to CASA.
         #exec_script("EVLA_pipe_import", **context)
 
         # Hanning smooth.
         # NOTE: This step is optional and likely unwanted for spectral line
-        # projects, but Hanning may be important if there is strong narrowband RFI.
+        # projects, but Hanning may be important if there is strong, narrowband RFI.
         #exec_script("EVLA_pipe_hanning", **context)
 
         # Get information from the MS that will be needed later, list the data, and
         # write generic diagnostic plots.
-        execfile(pipepath+'EVLA_pipe_msinfo.py')
+        #exec_script("EVLA_pipe_msinfo", **context)
 
-        return  # XXX
         # Deterministic flagging: (1) time-based for online flags, shadowed data,
         # zeroes, pointing scans, quacking, and (2) channel-based for end 5% of
         # channels of each SpW, 10 end channels at edges of basebands.
-        execfile(pipepath+'EVLA_pipe_flagall.py')
+        exec_script("EVLA_pipe_flagall")
 
+        return  # XXX
         # Prepare for calibrations. Fill model columns for primary calibrators.
         execfile(pipepath+'EVLA_pipe_calprep.py')
 

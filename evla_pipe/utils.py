@@ -30,7 +30,6 @@
 import os
 import time
 import math
-import shelve
 import urllib
 import datetime
 from pathlib import Path
@@ -46,6 +45,7 @@ me = measures()
 qa = quanta()
 msmd = msmetadata()
 
+from . import PIPE_PATH
 from .compat import running_within_casa
 
 if not running_within_casa:
@@ -97,20 +97,6 @@ class RunTimer:
         return times
 
 runtiming = RunTimer()
-
-
-def pipeline_save(filen='pipeline_shelf.restore'):
-    if not os.path.exists(filen):
-        pipe_shelf = shelve.open(filen, 'n')
-    else:
-        pipe_shelf = shelve.open(filen)
-    try:
-        with open(PIPE_PATH / "EVLA_pipe_restore.list") as f:
-            lines = f.read().split("\n")
-        keys = [k for k in lines if k]
-    except Exception as e:
-        logprint(f"Problem with opening keys for pipeline restart: {e}")
-    pipe_shelf.close()
 
 
 def uniq(inlist):
@@ -1029,7 +1015,7 @@ def find_3C84(positions):
     fields_3C84 = []
     for ii in range(0,len(positions)):
         position = me.direction('j2000', str(positions[ii][0])+'rad', str(positions[ii][1])+'rad')
-        separation = me.separation(position,position_3C84)['value'] * pi/180.0
+        separation = me.separation(position,position_3C84)['value'] * np.pi/180.0
         if (separation < MAX_SEPARATION):
             fields_3C84.append(ii)
     return fields_3C84
