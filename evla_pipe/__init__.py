@@ -83,39 +83,40 @@ def execfile(filepath, global_vars=None):
     exec(source, global_vars, global_vars)
 
 
-def exec_script(name, **kwargs):
+def exec_script(name, context):
     script_path = str(PIPE_PATH / f"{name}.py")
-    execfile(script_path, **kwargs)
+    execfile(script_path, global_vars=context)
 
 
-def run_pipeline():
-    context = {"global_vars": globals()}
+def run_pipeline(context=None):
+    if context is None:
+        context = globals()
     try:
         # The following script includes all the definitions and functions and
         # prior inputs needed by a run of the pipeline.
-        #exec_script("EVLA_pipe_startup", **context)
+        #exec_script("EVLA_pipe_startup", context)
 
         # Import the data to CASA.
-        #exec_script("EVLA_pipe_import", **context)
+        #exec_script("EVLA_pipe_import", context)
 
         # Hanning smooth.
         # NOTE: This step is optional and likely unwanted for spectral line
         # projects, but Hanning may be important if there is strong, narrowband RFI.
-        #exec_script("EVLA_pipe_hanning", **context)
+        #exec_script("EVLA_pipe_hanning", context)
 
         # Get information from the MS that will be needed later, list the data, and
         # write generic diagnostic plots.
-        #exec_script("EVLA_pipe_msinfo", **context)
+        #exec_script("EVLA_pipe_msinfo", context)
 
         # Deterministic flagging: (1) time-based for online flags, shadowed data,
         # zeroes, pointing scans, quacking, and (2) channel-based for end 5% of
         # channels of each SpW, 10 end channels at edges of basebands.
-        exec_script("EVLA_pipe_flagall")
+        #exec_script("EVLA_pipe_flagall", context)
 
-        return  # XXX
         # Prepare for calibrations. Fill model columns for primary calibrators.
-        execfile(pipepath+'EVLA_pipe_calprep.py')
+        exec_script("EVLA_pipe_calprep", context)
 
+        return context  # XXX
         # Apply "prior" calibrations (gain curves, opacities, antenna position
         # corrections, and requantizer gains). Plot switched power tables,
         # although not currently used in calibration.
@@ -188,4 +189,5 @@ def run_pipeline():
         execfile(pipepath+'EVLA_pipe_weblog.py')
     except KeyboardInterrupt as e:
         logprint(f"Keyboard Interrupt: {e}")
+    return context
 

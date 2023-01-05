@@ -127,6 +127,7 @@ integration_times = [
         for ii in sorted_scan_list
 ]
 maximum_integration_time = max(integration_times)
+int_time = maximum_integration_time  # alias used in later scripts
 median_integration_time = np.median(integration_times)
 
 if maximum_integration_time != median_integration_time:
@@ -150,6 +151,7 @@ for ii in range(1, len(sorted_scan_list)):
         old_field = new_field
         old_spws = new_spws
 quack_scan_string = ",".join(str(ii) for ii in scan_list)
+task_logprint(f"Scans to quack: {quack_scan_string}")
 
 # For 1 GHz wide basebands, figure out which spws are associated
 # with the edges of the baseband filters.
