@@ -1,5 +1,6 @@
 """
-PREPARE FOR CALIBRATIONS.
+Prepare for calibrations
+========================
 
 Fill models for all primary calibrators.
 NB: in CASA 3.4.0 can only set models based on field ID and spw, not

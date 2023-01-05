@@ -114,14 +114,14 @@ def run_pipeline(context=None):
         #exec_script("EVLA_pipe_flagall", context)
 
         # Prepare for calibrations. Fill model columns for primary calibrators.
-        exec_script("EVLA_pipe_calprep", context)
+        #exec_script("EVLA_pipe_calprep", context)
 
-        return context  # XXX
         # Apply "prior" calibrations (gain curves, opacities, antenna position
         # corrections, and requantizer gains). Plot switched power tables,
         # although not currently used in calibration.
-        execfile(pipepath+'EVLA_pipe_priorcals.py')
+        exec_script("EVLA_pipe_priorcals", context)
 
+        return context  # XXX
         # Initial test calibrations using bandpass and delay calibrators.
         execfile(pipepath+'EVLA_pipe_testBPdcals.py')
 
