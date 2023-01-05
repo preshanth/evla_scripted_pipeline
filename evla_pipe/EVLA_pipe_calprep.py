@@ -1,97 +1,69 @@
-######################################################################
-#
-# Copyright (C) 2013
-# Associated Universities, Inc. Washington DC, USA,
-#
-# This library is free software; you can redistribute it and/or modify it
-# under the terms of the GNU Library General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or (at your
-# option) any later version.
-#
-# This library is distributed in the hope that it will be useful, but WITHOUT
-# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Library General Public
-# License for more details.
-#
-# You should have received a copy of the GNU Library General Public License
-# along with this library; if not, write to the Free Software Foundation,
-# Inc., 675 Massachusetts Ave, Cambridge, MA 02139, USA.
-#
-# Correspondence concerning VLA Pipelines should be addressed as follows:
-#    Please register and submit helpdesk tickets via: https://help.nrao.edu
-#    Postal address:
-#              National Radio Astronomy Observatory
-#              VLA Pipeline Support Office
-#              PO Box O
-#              Socorro, NM,  USA
-#
-######################################################################
+"""
+PREPARE FOR CALIBRATIONS.
 
-# PREPARE FOR CALIBRATIONS
+Fill models for all primary calibrators.
+NB: in CASA 3.4.0 can only set models based on field ID and spw, not
+by intents or scans
+"""
 
-# Fill models for all primary calibrators
-# NB: in CASA 3.4.0 can only set models based on field ID and spw, not
-# by intents or scans
+from casatasks import setjy
 
-logprint ("Starting EVLA_pipe_calprep.py", logfileout='logs/calprep.log')
-time_list=runtiming('calprep', 'start')
-QA2_calprep='Pass'
+from .utils import runtiming, logprint, find_standards, find_EVLA_band
 
-logprint ("Setting models for standard primary calibrators", logfileout='logs/calprep.log')
 
-tb.open(ms_active)
+def task_logprint(msg):
+    logprint(msg, logfileout="logs/calprep.log")
 
-positions = []
 
-for ii in range(0,len(field_positions[0][0])):
-    positions.append([field_positions[0][0][ii], field_positions[1][0][ii]])
+task_logprint("Starting EVLA_pipe_calprep.py")
+time_list = runtiming("calprep", "start")
+QA2_calprep = "Pass"
 
-standard_source_names = [ '3C48', '3C138', '3C147', '3C286' ]
+task_logprint("Setting models for standard primary calibrators")
+
+positions = field_positions.T.squeeze()
+standard_source_names = ["3C48", "3C138", "3C147", "3C286"]
 standard_source_fields = find_standards(positions)
 
-standard_source_found = False
-for standard_source_field in standard_source_fields:
-    if standard_source_field:
-        standard_source_found = True
+standard_source_found = any(standard_source_fields)
 if not standard_source_found:
-    standard_source_found = False
-    logprint ("ERROR: No standard flux density calibrator observed, flux density scale will be arbitrary", logfileout='logs/calprep.log')
-    QA2_calprep='Fail'
+    task_logprint(
+        "ERROR: No standard flux density calibrator observed, flux density scale will be arbitrary."
+    )
+    QA2_calprep = "Fail"
 
-ii=0
-for fields in standard_source_fields:
-    for myfield in fields:
-        spws = field_spws[myfield]
-        for myspw in spws:
-            reference_frequency = center_frequencies[myspw]
+for ii, fields in enumerate(standard_source_fields):
+    for field in fields:
+        spws = field_spws[field]
+        for spw in spws:
+            reference_frequency = center_frequencies[spw]
             EVLA_band = find_EVLA_band(reference_frequency)
-            logprint ("Center freq for spw "+str(myspw)+" = "+str(reference_frequency)+", observing band = "+EVLA_band, logfileout='logs/calprep.log')
-
-            model_image = standard_source_names[ii]+'_'+EVLA_band+'.im'
-
-            logprint ("Setting model for field "+str(myfield)+" spw "+str(myspw)+" using "+model_image, logfileout='logs/calprep.log')
+            task_logprint(
+                f"Center freq for spw {spw} = {reference_frequency}, observing band = {EVLA_band}"
+            )
+            model_image = f"{standard_source_names[ii]}_{EVLA_band}.im"
+            task_logprint(
+                f"Setting model for field {field} spw {spw} using {model_image}"
+            )
             try:
-            	default('setjy')
-            	vis=ms_active
-            	field=str(myfield)
-            	spw=str(myspw)
-            	selectdata=False
-            	scalebychan=True
-            	standard='Perley-Butler 2017'
-            	model=model_image
-            	listmodels=False
-            	usescratch=scratch
-            	setjy()
+                setjy(
+                    vis=ms_active,
+                    field=str(field),
+                    spw=str(spw),
+                    selectdata=False,
+                    scalebychan=True,
+                    standard="Perley-Butler 2017",
+                    model=model_image,
+                    listmodels=False,
+                    usescratch=scratch,
+                )
             except:
-               logprint('no data found for field ' + str(myfield)+" spw "+str(myspw), logfileout='logs/calprep.log')    
-    ii=ii+1
+                task_logprint(f"no data found for field {field} spw {spw}")
 
-tb.close()
+task_logprint("Finished setting models for known calibrators")
 
-logprint("Finished setting models for known calibrators", logfileout='logs/calprep.log')
-
-logprint ("Finished EVLA_pipe_calprep.py", logfileout='logs/calprep.log')
-logprint ("QA2 score: "+QA2_calprep, logfileout='logs/calprep.log')
-time_list=runtiming('calprep', 'end')
+task_logprint("Finished EVLA_pipe_calprep.py")
+task_logprint(f"QA2 score: {QA2_calprep}")
+time_list = runtiming("calprep", "end")
 
 pipeline_save()
