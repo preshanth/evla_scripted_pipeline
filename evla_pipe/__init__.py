@@ -125,14 +125,10 @@ def run_pipeline(context=None):
         #exec_script("EVLA_pipe_testBPdcals", context)
 
         # Identify and flag basebands with bad deformatters or RFI based on
-        # the bandpass table amplitudes.
+        # the bandpass table amplitudes and phases.
         exec_script("EVLA_pipe_flag_baddeformatters", context)
 
         return context  # XXX
-        # Identify and flag basebands with bad deformatters or RFI based on
-        # bandpass table phases.
-        execfile(pipepath+'EVLA_pipe_flag_baddeformattersphase.py')
-
         # Flag possible RFI on the bandpass calibrator using `rflag`.
         execfile(pipepath+'EVLA_pipe_checkflag.py')
 
