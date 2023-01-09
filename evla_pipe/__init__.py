@@ -119,16 +119,16 @@ def run_pipeline(context=None):
         # Apply "prior" calibrations (gain curves, opacities, antenna position
         # corrections, and requantizer gains). Plot switched power tables,
         # although not currently used in calibration.
-        exec_script("EVLA_pipe_priorcals", context)
+        #exec_script("EVLA_pipe_priorcals", context)
 
-        return context  # XXX
         # Initial test calibrations using bandpass and delay calibrators.
-        execfile(pipepath+'EVLA_pipe_testBPdcals.py')
+        #exec_script("EVLA_pipe_testBPdcals", context)
 
         # Identify and flag basebands with bad deformatters or RFI based on
         # the bandpass table amplitudes.
-        execfile(pipepath+'EVLA_pipe_flag_baddeformatters.py')
+        exec_script("EVLA_pipe_flag_baddeformatters", context)
 
+        return context  # XXX
         # Identify and flag basebands with bad deformatters or RFI based on
         # bandpass table phases.
         execfile(pipepath+'EVLA_pipe_flag_baddeformattersphase.py')

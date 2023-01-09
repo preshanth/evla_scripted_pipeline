@@ -28,6 +28,7 @@
 ######################################################################
 
 import os
+import copy
 import time
 import math
 import urllib
@@ -38,6 +39,7 @@ import numpy as np
 # NOTE `np` is aliased in `getBCalStatistics` so use `numpy` directly there.
 import numpy
 
+from casatasks import gaincal
 from casatools import ms as mstool
 from casatools import (table, measures, quanta, msmetadata)
 tb = table()

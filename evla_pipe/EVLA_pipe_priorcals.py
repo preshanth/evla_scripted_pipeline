@@ -106,8 +106,7 @@ if startdate >= feb_24_2011:
     task_logprint("Plotting switched power table")
     nplots = int(numAntenna / 3)
     if (numAntenna % 3) > 0:
-        nplots = nplots + 1
-
+        nplots += 1
     for ii in range(nplots):
         ant_select = str(ii * 3) + "~" + str(ii * 3 + 2)
         for plotfile, yaxis in (
