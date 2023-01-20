@@ -10,6 +10,7 @@ import os
 from casatasks import gencal
 from casaplotms import plotms
 
+from . import pipeline_save
 from .utils import runtiming, logprint, correct_ant_posns
 
 

@@ -9,6 +9,7 @@ by intents or scans
 
 from casatasks import setjy
 
+from . import pipeline_save
 from .utils import runtiming, logprint, find_standards, find_EVLA_band
 
 

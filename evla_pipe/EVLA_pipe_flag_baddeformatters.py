@@ -5,7 +5,8 @@ solutions that have small ratio of min/max amplitudes.
 
 from casatasks import flagdata
 
-from .utils import getBCalStatistics
+from . import pipeline_save
+from .utils import logprint, runtiming, getBCalStatistics
 
 
 def task_logprint(msg):
@@ -209,7 +210,7 @@ def flag_on_deformatters(
     return None
 
 
-# Flag based on amplitude
+task_logprint("Flag based on amplitudes.")
 flag_on_deformatters(
     testq="amp",
     tstat="rat",
@@ -223,7 +224,7 @@ flag_on_deformatters(
     flagreason="bad_deformatters_amp or RFI",
 )
 
-# Flag based on phase
+task_logprint("Flag based on phase.")
 flag_on_deformatters(
     testq="phase",
     tstat="diff",

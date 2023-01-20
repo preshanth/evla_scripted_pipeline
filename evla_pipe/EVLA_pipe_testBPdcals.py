@@ -11,6 +11,7 @@ from casatasks import gaincal, bandpass, applycal
 from casatools import table
 from casaplotms import plotms
 
+from . import pipeline_save
 from .utils import (
         runtiming,
         logprint,
@@ -210,7 +211,6 @@ task_logprint(
 # Plot amplitude gain solutions
 for ii in range(nplots):
     plotfile = f"testBPdinitialgainamp{ii}.png"
-    os.system(f"rm -rf {plotfile}")
     ant_select = str(ii * 3) + "~" + str(ii * 3 + 2)
     # create plot
     plotms(
@@ -234,7 +234,6 @@ for ii in range(nplots):
 task_logprint("Plotting phase gain solutions")
 for ii in range(nplots):
     plotfile = f"testBPdinitialgainphase{ii}.png"
-    os.system(f"rm -rf {plotfile}")
     ant_select = str(ii * 3) + "~" + str(ii * 3 + 2)
     # create plot
     plotms(

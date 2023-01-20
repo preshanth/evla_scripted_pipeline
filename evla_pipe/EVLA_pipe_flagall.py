@@ -8,6 +8,7 @@ zeros, pointing scans, and quacking.
 
 from casatasks import flagdata, flagmanager
 
+from . import pipeline_save
 from .utils import runtiming, logprint
 
 

@@ -126,63 +126,63 @@ def run_pipeline(context=None):
 
         # Identify and flag basebands with bad deformatters or RFI based on
         # the bandpass table amplitudes and phases.
-        exec_script("EVLA_pipe_flag_baddeformatters", context)
+        #exec_script("EVLA_pipe_flag_baddeformatters", context)
 
-        return context  # XXX
         # Flag possible RFI on the bandpass calibrator using `rflag`.
-        execfile(pipepath+'EVLA_pipe_checkflag.py')
+        #exec_script("EVLA_pipe_checkflag", context)
 
         # Do semi-final delay and bandpass calibrations. This step is "semi-final"
         # because we have not yet determined the spectral index of the bandpass
         # calibrator.
-        execfile(pipepath+'EVLA_pipe_semiFinalBPdcals1.py')
+        #exec_script("EVLA_pipe_semiFinalBPdcals1", context)
 
         # Use flagdata again on calibrators
-        execfile(pipepath+'EVLA_pipe_checkflag_semiFinal.py')
+        exec_script("EVLA_pipe_checkflag_semiFinal", context)
+        return context  # XXX
 
-        # Re-run semiFinalBPdcals.py following flagging with `rflag`.
-        execfile(pipepath+'EVLA_pipe_semiFinalBPdcals2.py')
+        # Re-run semiFinalBPdcals following flagging with `rflag` above.
+        exec_script("EVLA_pipe_semiFinalBPdcals1", context)
 
         # Determine solution interval (solint) for scan-average equivalent.
-        execfile(pipepath+'EVLA_pipe_solint.py')
+        exec_script("EVLA_pipe_solint", context)
 
         # Do test gain calibrations to establish short solution interval.
-        execfile(pipepath+'EVLA_pipe_testgains.py')
+        exec_script("EVLA_pipe_testgains", context)
 
         # Make gain table for flux density bootstrapping. Create gain table with
         # gain and opacity corrections for final amplitude calibration for flux
         # density bootstrapping.
-        execfile(pipepath+'EVLA_pipe_fluxgains.py')
+        exec_script("EVLA_pipe_fluxgains", context)
 
         # Flag gain table prior to flux density bootstrapping.
         # NOTE: Break here to flag the gain table interatively, if desired; this
         # step is not included in real-time pipeline otherwise.
-        #execfile(pipepath+'EVLA_pipe_fluxflag.py')
+        #exec_script("EVLA_pipe_fluxflag", context)
 
         # Perform the flux density bootstrapping. This fits spectral index of
         # calibrators with a power-law and writes values into the model column.
-        execfile(pipepath+'EVLA_pipe_fluxboot.py')
+        exec_script("EVLA_pipe_fluxboot", context)
 
         # Make final calibration tables.
-        execfile(pipepath+'EVLA_pipe_finalcals.py')
+        exec_script("EVLA_pipe_finalcals", context)
 
         # Apply all calibrations and check calibrated data.
-        execfile(pipepath+'EVLA_pipe_applycals.py')
+        exec_script("EVLA_pipe_applycals", context)
 
         # Now run all calibrated data (including target) through `rflag`.
-        execfile(pipepath+'EVLA_pipe_targetflag.py')
+        exec_script("EVLA_pipe_targetflag", context)
 
         # Calculate data weights based on standard deviation within each SpW.
-        execfile(pipepath+'EVLA_pipe_statwt.py')
+        exec_script("EVLA_pipe_statwt", context)
 
         # Make final uv plots.
-        execfile(pipepath+'EVLA_pipe_plotsummary.py')
+        exec_script("EVLA_pipe_plotsummary", context)
 
         # Collect relevant plots and tables.
-        execfile(pipepath+'EVLA_pipe_filecollect.py')
+        exec_script("EVLA_pipe_filecollect", context)
 
         # Write weblog.
-        execfile(pipepath+'EVLA_pipe_weblog.py')
+        exec_script("EVLA_pipe_weblog", context)
     except KeyboardInterrupt as e:
         logprint(f"Keyboard Interrupt: {e}")
     return context
