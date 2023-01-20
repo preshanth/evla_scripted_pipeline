@@ -137,14 +137,14 @@ def run_pipeline(context=None):
         #exec_script("EVLA_pipe_semiFinalBPdcals1", context)
 
         # Use flagdata again on calibrators
-        exec_script("EVLA_pipe_checkflag_semiFinal", context)
-        return context  # XXX
+        #exec_script("EVLA_pipe_checkflag_semiFinal", context)
 
         # Re-run semiFinalBPdcals following flagging with `rflag` above.
-        exec_script("EVLA_pipe_semiFinalBPdcals1", context)
+        #exec_script("EVLA_pipe_semiFinalBPdcals1", context)
 
         # Determine solution interval (solint) for scan-average equivalent.
         exec_script("EVLA_pipe_solint", context)
+        return context  # XXX
 
         # Do test gain calibrations to establish short solution interval.
         exec_script("EVLA_pipe_testgains", context)
