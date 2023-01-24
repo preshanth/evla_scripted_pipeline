@@ -146,13 +146,12 @@ def run_pipeline(context=None):
         #exec_script("EVLA_pipe_solint", context)
 
         # Do test gain calibrations to establish short solution interval.
-        exec_script("EVLA_pipe_testgains", context)
+        #exec_script("EVLA_pipe_testgains", context)
 
-        return context  # XXX
         # Make gain table for flux density bootstrapping. Create gain table with
         # gain and opacity corrections for final amplitude calibration for flux
         # density bootstrapping.
-        exec_script("EVLA_pipe_fluxgains", context)
+        #exec_script("EVLA_pipe_fluxgains", context)
 
         # Flag gain table prior to flux density bootstrapping.
         # NOTE: Break here to flag the gain table interatively, if desired; this
@@ -163,6 +162,7 @@ def run_pipeline(context=None):
         # calibrators with a power-law and writes values into the model column.
         exec_script("EVLA_pipe_fluxboot", context)
 
+        return context  # XXX
         # Make final calibration tables.
         exec_script("EVLA_pipe_finalcals", context)
 
