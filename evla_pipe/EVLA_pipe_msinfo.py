@@ -431,10 +431,7 @@ finally:
 minBL_for_cal = max(3, int(numAntenna / 2.0))
 
 # Determine if 3C84 was used as a bandpass or delay calibrator
-positions = []
-for ii in range(0, len(field_positions[0][0])):
-    positions.append([field_positions[0][0][ii], field_positions[1][0][ii]])
-
+positions = field_positions.T.squeeze()
 fields_3C84 = find_3C84(positions)
 cal3C84_d = False
 cal3C84_bp = False
