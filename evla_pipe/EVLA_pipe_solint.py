@@ -11,8 +11,6 @@ Notes
 * Modified using Brian's code for the flagged data as described in CAS-10130
 """
 
-import os
-
 from casatasks import rmtables, split
 from casatools import ms as mstool
 

@@ -172,7 +172,7 @@ gaincal(
     selectdata=True,
     uvrange=uvrange3C84,
     scan=bandpass_scan_select_string,
-    solint=solint,
+    solint=gain_solint1,
     combine="scan",
     preavg=-1.0,
     refant=refAnt,

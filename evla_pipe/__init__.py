@@ -143,12 +143,12 @@ def run_pipeline(context=None):
         #exec_script("EVLA_pipe_semiFinalBPdcals1", context)
 
         # Determine solution interval (solint) for scan-average equivalent.
-        exec_script("EVLA_pipe_solint", context)
-        return context  # XXX
+        #exec_script("EVLA_pipe_solint", context)
 
         # Do test gain calibrations to establish short solution interval.
         exec_script("EVLA_pipe_testgains", context)
 
+        return context  # XXX
         # Make gain table for flux density bootstrapping. Create gain table with
         # gain and opacity corrections for final amplitude calibration for flux
         # density bootstrapping.

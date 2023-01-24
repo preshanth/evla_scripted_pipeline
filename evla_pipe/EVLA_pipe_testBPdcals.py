@@ -195,13 +195,15 @@ for time_factor in (1.0, 3.0, 10.0):
     else:
         fracFlaggedSolns1 = 1.0
     if fracFlaggedSolns1 < flagging_threshold:
-        task_logprint(f"Using {solint} solution interval.")
+        task_logprint(f"Using short solution interval: {solint}")
         break
 else:
     task_logprint(
         "WARNING, large fraction of flagged solutions, there might be something wrong with your data."
     )
     QA2_testBPdcals = "Fail"
+gain_solint1 = solint
+shortsol1 = soltime
 
 task_logprint(
     "Test amp and phase calibration on delay and bandpass calibrators complete"
