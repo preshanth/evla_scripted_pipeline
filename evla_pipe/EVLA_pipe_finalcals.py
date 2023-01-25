@@ -11,6 +11,7 @@ from casatasks import rmtables, gaincal, bandpass, flagdata, applycal, split, se
 from casatools import table
 from casaplotms import plotms
 
+from . import pipeline_save
 from .utils import logprint, runtiming, RefAntHeuristics
 
 tb = table()

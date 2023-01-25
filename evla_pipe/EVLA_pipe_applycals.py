@@ -7,6 +7,7 @@ import copy
 
 from casatasks import flagdata, applycal
 
+from . import pipeline_save
 from .utils import logprint, runtiming
 
 
