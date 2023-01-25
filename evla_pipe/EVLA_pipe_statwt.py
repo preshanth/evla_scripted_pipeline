@@ -17,18 +17,15 @@ task_logprint("Starting EVLA_pipe_statwt.py")
 time_list = runtiming("checkflag", "start")
 QA2_statwt = "Pass"
 
-task_logprint("Calculate data weights per spw using statwt")
+task_logprint("Calculating data weights per SpW using statwt.")
+
+# FIXME Should check for a `cont.dat` file here and feed to `fitspw` and
+# `field` parameters of `statwt`.
 
 # Run on all calibrators
 statwt(
     vis=ms_active,
-    dorms=False,
-    fitspw="",
-    fitcorr="",
-    combine="",
     minsamp=2,
-    field="",
-    spw="",
     intent="*CALIBRATE*",
     datacolumn="corrected",
 )
@@ -37,13 +34,7 @@ statwt(
 # set spw to exclude strong science spectral lines
 statwt(
     vis=ms_active,
-    dorms=False,
-    fitspw="",
-    fitcorr="",
-    combine="",
     minsamp=2,
-    field="",
-    spw="",
     intent="*TARGET*",
     datacolumn="corrected",
 )
