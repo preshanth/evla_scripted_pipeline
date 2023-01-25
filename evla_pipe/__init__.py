@@ -169,12 +169,12 @@ def run_pipeline(context=None):
         #exec_script("EVLA_pipe_applycals", context)
 
         # Now run all calibrated data (including target) through `rflag`.
-        exec_script("EVLA_pipe_targetflag", context)
+        #exec_script("EVLA_pipe_targetflag", context)
 
-        return context  # XXX
         # Calculate data weights based on standard deviation within each SpW.
         exec_script("EVLA_pipe_statwt", context)
 
+        return context  # XXX
         # Make final uv plots.
         exec_script("EVLA_pipe_plotsummary", context)
 
