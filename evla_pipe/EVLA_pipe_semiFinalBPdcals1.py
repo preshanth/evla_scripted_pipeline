@@ -140,7 +140,6 @@ if (numAntenna % 3) > 0:
     nplots = nplots + 1
 for ii in range(nplots):
     plotfile = f"delay{ii}.png"
-    os.system(f"rm -rf {plotfile}")
     ant_select = str(ii * 3) + "~" + str(ii * 3 + 2)
     plotms(
         vis="delay.k",

@@ -61,19 +61,6 @@ if not os.path.exists(fluxscale_output):
     task_logprint(f"Error: fluxscale output '{fluxscale_output}' does not exist.")
 
 # Find the field_ids in the dictionary returned from the CASA task fluxscale
-primary_keys_to_remove = [
-    "freq",
-    "spwName",
-    "spwID",
-]
-secondary_keys_to_remove = [
-    "fitRefFreq",
-    "spidxerr",
-    "spidx",
-    "fitFluxd",
-    "fieldName",
-    "fitFluxdErr",
-]
 sources = []
 flux_densities = []
 spws = []
@@ -82,8 +69,6 @@ for field_id in fluxscale_result.keys():
         int(field_id)
     except ValueError:
         continue  # not a field ID, "freq", "spwName", etc.
-    #if field_id in primary_keys_to_remove:
-    #    continue
     sourcename = fluxscale_result[field_id]["fieldName"]
     secondary_keys = list(fluxscale_result[field_id].keys())
     for spw_id in secondary_keys:
@@ -91,8 +76,6 @@ for field_id in fluxscale_result.keys():
             int(spw_id)
         except ValueError:
             continue  # not a SpW ID, "fitRefFreq", "spidx", etc.
-        #if spw_id in secondary_keys_to_remove:
-        #    continue
         flux_items = fluxscale_result[field_id][spw_id]
         flux_d = list(flux_items["fluxd"])
         flux_d_err = list(flux_items["fluxdErr"])
@@ -166,10 +149,8 @@ for source in np.unique(sources):
                 args=(alfreqs, alfds, alerrs),
                 full_output=True,
             )
-            pfinal = fit_out[0]
+            aa, bb = fit_out[0]
             covar = fit_out[1]
-            aa = pfinal[0]
-            bb = pfinal[1]
 
             # The fit is of the form:
             #
