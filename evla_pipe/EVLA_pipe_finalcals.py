@@ -17,7 +17,7 @@ tb = table()
 
 
 def task_logprint(msg):
-    logprint(msg, logfileout="logs/fluxboot.log")
+    logprint(msg, logfileout="logs/finalcals.log")
 
 
 def fitfunc(p, x):

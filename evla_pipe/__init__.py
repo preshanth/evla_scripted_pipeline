@@ -163,15 +163,15 @@ def run_pipeline(context=None):
         #exec_script("EVLA_pipe_fluxboot", context)
 
         # Make final calibration tables.
-        exec_script("EVLA_pipe_finalcals", context)
+        #exec_script("EVLA_pipe_finalcals", context)
 
-        return context  # XXX
         # Apply all calibrations and check calibrated data.
-        exec_script("EVLA_pipe_applycals", context)
+        #exec_script("EVLA_pipe_applycals", context)
 
         # Now run all calibrated data (including target) through `rflag`.
         exec_script("EVLA_pipe_targetflag", context)
 
+        return context  # XXX
         # Calculate data weights based on standard deviation within each SpW.
         exec_script("EVLA_pipe_statwt", context)
 
