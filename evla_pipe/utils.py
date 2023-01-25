@@ -1026,7 +1026,7 @@ def find_3C84(positions):
 def checkblankplot(plotfile, maincasalog):
     """Returns `True` if file is removed."""
     blankplot = False
-    fhandle = os.popen('tail ' + maincasalog + ' | grep "Plotting 0 unflagged points."')
+    fhandle = os.popen(f'tail {maincasalog} | grep "Plotting 0 unflagged points."')
     if fhandle.read() != '':
         # Plot is blank, so delete the file
         os.system('rm -rf ' + plotfile)

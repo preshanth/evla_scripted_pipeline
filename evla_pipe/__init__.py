@@ -160,12 +160,12 @@ def run_pipeline(context=None):
 
         # Perform the flux density bootstrapping. This fits spectral index of
         # calibrators with a power-law and writes values into the model column.
-        exec_script("EVLA_pipe_fluxboot", context)
+        #exec_script("EVLA_pipe_fluxboot", context)
 
-        return context  # XXX
         # Make final calibration tables.
         exec_script("EVLA_pipe_finalcals", context)
 
+        return context  # XXX
         # Apply all calibrations and check calibrated data.
         exec_script("EVLA_pipe_applycals", context)
 
