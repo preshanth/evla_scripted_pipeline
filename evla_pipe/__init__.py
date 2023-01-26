@@ -175,12 +175,12 @@ def run_pipeline(context=None):
         #exec_script("EVLA_pipe_statwt", context)
 
         # Make final uv plots.
-        exec_script("EVLA_pipe_plotsummary", context)
+        #exec_script("EVLA_pipe_plotsummary", context)
 
-        return context  # XXX
         # Collect relevant plots and tables.
         exec_script("EVLA_pipe_filecollect", context)
 
+        return context  # XXX
         # Write weblog.
         exec_script("EVLA_pipe_weblog", context)
     except KeyboardInterrupt as e:
