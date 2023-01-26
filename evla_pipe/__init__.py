@@ -178,11 +178,11 @@ def run_pipeline(context=None):
         #exec_script("EVLA_pipe_plotsummary", context)
 
         # Collect relevant plots and tables.
-        exec_script("EVLA_pipe_filecollect", context)
+        #exec_script("EVLA_pipe_filecollect", context)
 
-        return context  # XXX
         # Write weblog.
         exec_script("EVLA_pipe_weblog", context)
+        return context  # XXX
     except KeyboardInterrupt as e:
         logprint(f"Keyboard Interrupt: {e}")
     return context

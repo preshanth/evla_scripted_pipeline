@@ -9,7 +9,7 @@ from .utils import logprint, runtiming
 
 
 def task_logprint(msg):
-    logprint(msg, logfileout="logs/plotsummary.log")
+    logprint(msg, logfileout="logs/filecollect.log")
 
 
 task_logprint("Starting EVLA_pipe_plotsummary.py")
