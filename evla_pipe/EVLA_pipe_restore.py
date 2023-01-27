@@ -1,41 +1,11 @@
-######################################################################
-#
-# Copyright (C) 2013
-# Associated Universities, Inc. Washington DC, USA,
-#
-# This library is free software; you can redistribute it and/or modify it
-# under the terms of the GNU Library General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or (at your
-# option) any later version.
-#
-# This library is distributed in the hope that it will be useful, but WITHOUT
-# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Library General Public
-# License for more details.
-#
-# You should have received a copy of the GNU Library General Public License
-# along with this library; if not, write to the Free Software Foundation,
-# Inc., 675 Massachusetts Ave, Cambridge, MA 02139, USA.
-#
-# Correspondence concerning VLA Pipelines should be addressed as follows:
-#    Please register and submit helpdesk tickets via: https://help.nrao.edu
-#    Postal address:
-#              National Radio Astronomy Observatory
-#              VLA Pipeline Support Office
-#              PO Box O
-#              Socorro, NM,  USA
-#
-######################################################################
-
 '''
-Script that Restores all variables needed by the pipeline into the global namespace
-
+Restore all variables needed by the pipeline into the global namespace.
 '''
 
 import shelve
 
-#This is the default time-stamped casa log file, in case we
-#    need to return to it at any point in the script
+# This is the default time-stamped casa log file, in case we need to return to
+# it at any point in the script.
 log_dir='logs'
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
