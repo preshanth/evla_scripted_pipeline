@@ -1,6 +1,6 @@
 """
-Facilitates the restart of the pipeline. The `EVLA_pipe_restore.py` script
-needs to be run before this one.
+Facilitates the restart of the pipeline. The `pipeline_restore` function
+needs to be run before this script.
 """
 
 from . import exec_script
