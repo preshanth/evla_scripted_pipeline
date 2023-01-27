@@ -74,11 +74,6 @@ except:
     QA2_checkflag_semiFinal = "Unknown"
 
 try:
-    QA2_semiFinalBPdcals2
-except:
-    QA2_semiFinalBPdcals2 = "Unknown"
-
-try:
     QA2_solint
 except:
     QA2_solint = "Unknown"
@@ -169,7 +164,6 @@ with open("QA2_scores.txt", "w") as qalog:
     qalog.write("QA2_checkflag=" + QA2_checkflag + "\n")
     qalog.write("QA2_semiFinalBPdcals1=" + QA2_semiFinalBPdcals1 + "\n")
     qalog.write("QA2_checkflag_semiFinal=" + QA2_checkflag_semiFinal + "\n")
-    qalog.write("QA2_semiFinalBPdcals2=" + QA2_semiFinalBPdcals2 + "\n")
     qalog.write("QA2_solint=" + QA2_solint + "\n")
     qalog.write("QA2_testgains=" + QA2_testgains + "\n")
     qalog.write("QA2_fluxgains=" + QA2_fluxgains + "\n")
@@ -414,88 +408,36 @@ if standard_source_found == False:
 wlog.write(
     '<br>Fitted flux densities: <a href="./logs/fluxboot.log" type="text/plain" target="_blank">link</a></li>\n'
 )
-wlog.write("<br>Final delays [abs(max.delay) = " + str(maxdelay) + " ns]: \n")
-nplots = int(numAntenna / 3)
-if (numAntenna % 3) > 0:
-    nplots = nplots + 1
-for ii in range(nplots):
-    filename = "finaldelay" + str(ii) + ".png"
-    wlog.write('<br><img src="./' + filename + '">\n')
+wlog.write(f"<br>Final delays [abs(max.delay) = {maxdelay} ns]: \n")
+for filen in glob.glob("./weblog/finaldelay*.png"):
+    wlog.write(f'<br><img src="./{os.path.basename(filen)}">\n')
 wlog.write("<br>Final bandpass solutions: \n")
-for ii in range(nplots):
-    filename = "finalBPcal_amp" + str(ii) + ".png"
-    wlog.write('<br><img src="./' + filename + '">\n')
-for ii in range(nplots):
-    filename = "finalBPcal_phase" + str(ii) + ".png"
-    wlog.write('<br><img src="./' + filename + '">\n')
+for filen in glob.glob("./weblog/finalBPcal_amp*.png"):
+    wlog.write(f'<br><img src="./{os.path.basename(filen)}">\n')
+for filen in glob.glob("./weblog/finalBPcal_phase*.png"):
+    wlog.write(f'<br><img src="./{os.path.basename(filen)}">\n')
 wlog.write("<br>Final amplitude gain solutions: \n")
-for ii in range(nplots):
-    filename = "finalamptimecal" + str(ii) + ".png"
-    wlog.write('<br><img src="./' + filename + '">\n')
-for ii in range(nplots):
-    filename = "finalampfreqcal" + str(ii) + ".png"
-    wlog.write('<br><img src="./' + filename + '">\n')
+for filen in glob.glob("./weblog/finalamptimecal*.png"):
+    wlog.write(f'<br><img src="./{os.path.basename(filen)}">\n')
+for filen in glob.glob("./weblog/finalampfreqcal*.png"):
+    wlog.write(f'<br><img src="./{os.path.basename(filen)}">\n')
 wlog.write("<br>Final phase gain solutions: \n")
-for ii in range(nplots):
-    filename = "finalphasegaincal" + str(ii) + ".png"
-    wlog.write('<br><img src="./' + filename + '">\n')
+for filen in glob.glob("./weblog/finalphasegaincal*.png"):
+    wlog.write(f'<br><img src="./{os.path.basename(filen)}">\n')
 wlog.write("<br>Phase vs. time for calibrated calibrators: \n")
-filename = "all_calibrators_phase_time.png"
-wlog.write('<br><img src="./' + filename + '">\n')
+wlog.write('<br><img src="./all_calibrators_phase_time.png">\n')
 wlog.write("<br>Amplitude vs. uv-distance for all fields: \n")
-for ii in field_ids:
-    filename = "field" + str(field_ids[ii]) + "_amp_uvdist.png"
-    if os.path.exists("weblog/" + filename):
-        wlog.write('<br><img src="./' + filename + '">\n')
+for filen in glob.glob("./weblog/field*_amp_uvdist.png"):
+    wlog.write(f'<br><img src="./{os.path.basename(filen)}">\n')
 wlog.write("<br>\n")
 wlog.write("<br>Amplitude and Phase vs. Frequency for all fields: \n")
-for ii in field_ids:
-    if "#" in spw_names[0]:
-        for iii in range(0, len(spws_info)):
-            BB = spws_info[iii]
-            band = BB[0]
-            bband = BB[1]
-            filename_a = (
-                "field"
-                + str(field_ids[ii])
-                + "_"
-                + band
-                + "-Band_"
-                + bband
-                + "_amp_freq.png"
-            )
-            filename_p = (
-                "field"
-                + str(field_ids[ii])
-                + "_"
-                + band
-                + "-Band_"
-                + bband
-                + "_phase_freq.png"
-            )
-            if (os.path.exists("weblog/" + filename_a)) or (
-                os.path.exists("weblog/" + filename_p)
-            ):
-                wlog.write(
-                    '<br><img src="./'
-                    + filename_a
-                    + '" height="50%"><img src="./'
-                    + filename_p
-                    + '" height="50%">\n'
-                )
-    else:
-        filename_a = "field" + str(field_ids[ii]) + "_amp_freq.png"
-        filename_p = "field" + str(field_ids[ii]) + "_phase_freq.png"
-        if (os.path.exists("weblog/" + filename_a)) or (
-            os.path.exists("weblog/" + filename_p)
-        ):
-            wlog.write(
-                '<br><img src="./'
-                + filename_a
-                + '" height="50%"><img src="./'
-                + filename_p
-                + '" height="50%">\n'
-            )
+ampli_files = sorted(glob.glob("./weblog/field*_amp_freq.png"))
+phase_files = sorted(glob.glob("./weblog/field*_phase_freq.png"))
+for filen_a, filen_p in zip(ampli_files, phase_files):
+    wlog.write(
+            f'<br><img src="./{os.path.basename(filen_a)}" height="50%">'
+            f'<img src="./{os.path.basename(filen_p)}" height="50%">\n'
+    )
 wlog.write("<br>\n")
 wlog.write(
     '<br>Notes to PI from QA2 evaluation: <a href="./comments.txt" type="text/plain" target="_blank">link</a>\n'
@@ -776,36 +718,6 @@ wlog.write("<li>QA2 score: " + QA2_checkflag_semiFinal + " </li>\n")
 wlog.write("</ul>\n")
 wlog.write("<br>\n")
 wlog.write("<hr>\n")
-wlog.write("<br>Semi-final BP/delay calibrations (second run): \n")
-wlog.write("<ul>\n")
-wlog.write("<li>Script: EVLA_pipe_semiFinalBPdcals2.py</li>\n")
-wlog.write(
-    '<li>Log: <a href="./logs/semiFinalBPdcals2.log" type="text/plain" target="_blank">link</a></li>\n'
-)
-wlog.write("<li>QA2 score: " + QA2_semiFinalBPdcals2 + " </li>\n")
-wlog.write("<li>Plots: \n")
-wlog.write("<br>Delays: \n")
-for ii in range(nplots):
-    filename = "delay" + str(ii) + ".png"
-    wlog.write('<br><img src="./' + filename + '">\n')
-wlog.write("<br>Initial gain phases: \n")
-for ii in range(nplots):
-    filename = "BPinitialgainphase" + str(ii) + ".png"
-    wlog.write('<br><img src="./' + filename + '">\n')
-wlog.write("<br>Bandpass calibration amplitudes: \n")
-for ii in range(nplots):
-    filename = "BPcal_amp" + str(ii) + ".png"
-    wlog.write('<br><img src="./' + filename + '">\n')
-wlog.write("<br>Bandpass calibration phases: \n")
-for ii in range(nplots):
-    filename = "BPcal_phase" + str(ii) + ".png"
-    wlog.write('<br><img src="./' + filename + '">\n')
-wlog.write("<br>Bandpass-calibrated calibrators: \n")
-wlog.write('<br><img src="./semifinalcalibratedcals2.png">\n')
-wlog.write("</li>\n")
-wlog.write("</ul>\n")
-wlog.write("<br>\n")
-wlog.write("<hr>\n")
 wlog.write("<br>Determine long solint for gain calibrations: \n")
 wlog.write("<ul>\n")
 wlog.write("<li>Script: EVLA_pipe_solint.py</li>\n")
@@ -1040,12 +952,14 @@ for filen in all_logs:
     except:
         logprint("Unable to move " + filen, logfileout="logs/filecollect.log")
 
-all_html = glob.glob("./*.html")
-for filen in all_html:
+for filen in glob.glob("./*.html"):
+    dest = os.path.join(weblog_dir, filen)
     try:
-        shutil.move(filen, weblog_dir + "/.")
+        if os.path.exists(dest):
+            os.remove(dest)
+        shutil.move(filen, dest)
     except:
-        logprint("Unable to move " + filen, logfileout="logs/filecollect.log")
+        logprint(f"Unable to move {filen}", logfileout="logs/filecollect.log")
 
 if os.path.exists("stderr.casa"):
     std_casa = glob.glob("./stderr.casa")
