@@ -334,8 +334,7 @@ ampplotmax = maxmaxamp
 phaseplotmax = maxmaxphase
 
 for ii in range(nplots):
-    plotfile = "testBPcal_amp{ii}.png"
-    os.system(f"rm -rf {filename}")
+    plotfile = f"testBPcal_amp{ii}.png"
     ant_select = str(ii * 3) + "~" + str(ii * 3 + 2)
     # create plot
     plotms(
@@ -357,7 +356,6 @@ for ii in range(nplots):
 
 for ii in range(nplots):
     plotfile = f"testBPcal_phase{ii}.png"
-    os.system(f"rm -rf {filename}")
     ant_select = str(ii * 3) + "~" + str(ii * 3 + 2)
     # create plot
     plotms(
