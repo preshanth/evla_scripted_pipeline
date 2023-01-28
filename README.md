@@ -42,6 +42,18 @@ The first startup script will query the user for the name of the SDM and a few
 other questions. Restarting and restoring an incomplete pipeline run has not
 been well-tested.
 
+Certain individual scripts can also be re-run if they don't mutate the global
+state or the measurement set in a breaking way, or if one wants to simply
+run individual scripts for testing purposes:
+
+```python
+from evla_pipe import run_pipeline, exec_script
+context = run_pipeline()
+# ... perform other actions to inspect or modify the data
+context = exec_script("EVLA_pipe_plotsummary", context.copy())
+context = exec_script("EVLA_pipe_weblog", context.copy())
+```
+
 
 ## License
 This repository is copyright 2013 by Associated Universities Inc. and released
