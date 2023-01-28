@@ -310,7 +310,7 @@ def correct_ant_posns(vis_name, print_offsets=False):
     for ii in range(len(ant_num_stas)):
         ant_num_sta = ant_num_stas[ii]
         if ((ant_num_sta[3] != 0.0) or (ant_num_sta[4] != 0.0) or \
-            (ant_num_sta[3] != 0.0)):
+            (ant_num_sta[5] != 0.0)):
             if (print_offsets):
                 print("offsets for antenna %4s : %8.5f  %8.5f  %8.5f" % \
                       (ant_num_sta[1], ant_num_sta[3], ant_num_sta[4], ant_num_sta[5]))
