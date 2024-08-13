@@ -11,7 +11,7 @@ def task_logprint(msg):
     logprint(msg, logfileout="logs/import.log")
 
 
-task_logprint("Starting EVLA_pipe_import.py")
+task_logprint("*** Starting EVLA_pipe_import.py ***")
 time_list = runtiming("import", "start")
 QA2_import = "Pass"
 

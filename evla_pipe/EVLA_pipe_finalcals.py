@@ -29,7 +29,7 @@ def errfunc(p, x, y, err):
     return (y - fitfunc(p, x)) / err
 
 
-task_logprint("Starting EVLA_pipe_finalcals.py")
+task_logprint("*** Starting EVLA_pipe_finalcals.py ***")
 time_list = runtiming("finalcals", "start")
 QA2_finalcals = "Pass"
 

@@ -24,7 +24,7 @@ def task_logprint(msg):
     logprint(msg, logfileout="logs/solint.log")
 
 
-task_logprint("Starting EVLA_pipe_solint.py")
+task_logprint("*** Starting EVLA_pipe_solint.py ***")
 time_list = runtiming("solint", "start")
 QA2_solint = "Pass"
 

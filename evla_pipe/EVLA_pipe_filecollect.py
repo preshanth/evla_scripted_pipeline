@@ -17,7 +17,7 @@ def task_logprint(msg):
     logprint(msg, logfileout="logs/filecollect.log")
 
 
-task_logprint("Starting EVLA_pipe_filecollect.py")
+task_logprint("*** Starting EVLA_pipe_filecollect.py ***")
 time_list = runtiming("filecollect", "start")
 
 caltables_dir = "./final_caltables"

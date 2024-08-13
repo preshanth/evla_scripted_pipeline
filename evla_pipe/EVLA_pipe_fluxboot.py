@@ -26,7 +26,7 @@ def errfunc(p, x, y, err):
     return (y - fitfunc(p, x)) / err
 
 
-task_logprint("Starting EVLA_pipe_fluxboot.py")
+task_logprint("*** Starting EVLA_pipe_fluxboot.py ***")
 time_list = runtiming("fluxboot", "start")
 QA2_fluxboot = "Pass"
 

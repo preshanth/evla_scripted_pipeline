@@ -2,6 +2,7 @@
 # in the `msmetadata` toolkit instead of using the `table` tool directly.
 
 import numpy as np
+import warnings 
 
 from casatasks import (listobs, plotweather, flagcmd, plotants)
 from casatools import table
@@ -22,7 +23,7 @@ def task_logprint(msg):
     logprint(msg, logfileout="logs/msinfo.log")
 
 
-task_logprint("Starting EVLA_pipe_msinfo.py")
+task_logprint("*** Starting EVLA_pipe_msinfo.py ***")
 time_list = runtiming("msinfo", "start")
 QA2_msinfo = "Pass"
 
@@ -218,11 +219,13 @@ if len(low_spws) != len(high_spws):
 bandpass_state_IDs = []
 delay_state_IDs = []
 flux_state_IDs = []
-polarization_state_IDs = []
+polarization_angle_state_IDs = []
+polarization_lkg_state_IDs = []
 phase_state_IDs = []
 amp_state_IDs = []
 calibrator_state_IDs = []
 pointing_state_IDs = []
+
 for state_ID in range(len(intents)):
     state_intents = intents[state_ID].rsplit(",")
     for intent in range(len(state_intents)):
@@ -235,11 +238,53 @@ for state_ID in range(len(intents)):
             delay_state_IDs.append(state_ID)
             calibrator_state_IDs.append(state_ID)
         elif scan_intent == "CALIBRATE_FLUX":
+            tb.open(msname)
+            subtable = tb.query('STATE_ID in[%s]' %state_ID)
+            flux_field_id = np.unique(subtable.getcol('FIELD_ID'))
+            tb.close()
+            tb.open(msname+'/FIELD')
+            temp_field_names = tb.getcol('NAME')
+            fluxField = temp_field_names[flux_field_id][0]
+            tb.close()
+            
             flux_state_IDs.append(state_ID)
             calibrator_state_IDs.append(state_ID)
         elif scan_intent == "CALIBRATE_POLARIZATION":
-            polarization_state_IDs.append(state_ID)
+            tb.open(msname)
+            subtable = tb.query('STATE_ID in[%s]' %state_ID)
+            pol_field_id = np.unique(subtable.getcol('FIELD_ID'))
+            tb.close()
+            tb.open(msname+'/FIELD')
+            temp_field_names = tb.getcol('NAME')
+            polField = temp_field_names[pol_field_id][0]
+            tb.close()
+            polarization_angle_state_IDs.append(state_ID)
             calibrator_state_IDs.append(state_ID)
+        elif scan_intent == "CALIBRATE_POL_ANGLE":
+            tb.open(msname)
+            subtable = tb.query('STATE_ID in[%s]' %state_ID)
+            pol_angle_field_id = np.unique(subtable.getcol('FIELD_ID'))
+            tb.close()
+            tb.open(msname+'/FIELD')
+            temp_field_names = tb.getcol('NAME')
+            polAngleField = temp_field_names[pol_angle_field_id][0]
+            tb.close()
+            print('polAngleField = ', polAngleField)
+            
+            polarization_angle_state_IDs.append(state_ID)
+            calibrator_state_IDs.append(state_ID)
+        elif scan_intent == "CALIBRATE_POL_LEAKAGE":
+            tb.open(msname)
+            subtable = tb.query('STATE_ID in[%s]' %state_ID)
+            pol_lkg_field_id = np.unique(subtable.getcol('FIELD_ID'))
+            tb.close()
+            tb.open(msname+'/FIELD')
+            temp_field_names = tb.getcol('NAME')
+            polLeakField = temp_field_names[pol_lkg_field_id][0]
+            tb.close()
+            print('polLeakField = ', polLeakField)
+            polarization_lkg_state_IDs.append(state_ID)
+            calibrator_state_IDs.append(state_ID)            
         elif scan_intent == "CALIBRATE_AMPLI":
             amp_state_IDs.append(state_ID)
             calibrator_state_IDs.append(state_ID)
@@ -249,7 +294,7 @@ for state_ID in range(len(intents)):
         elif scan_intent == "CALIBRATE_POINTING":
             pointing_state_IDs.append(state_ID)
             calibrator_state_IDs.append(state_ID)
-
+        
 tb.open(msname)
 
 if len(flux_state_IDs) == 0:
@@ -261,6 +306,7 @@ else:
     for state_ID in range(1, len(flux_state_IDs)):
         flux_state_select_string += ",%s" % flux_state_IDs[state_ID]
     flux_state_select_string += "]"
+    print('flux_state_select_string', flux_state_select_string)
     subtable = tb.query(flux_state_select_string)
     flux_scan_list = list(np.unique(subtable.getcol("SCAN_NUMBER")))
     flux_scan_select_string = ",".join(["%s" % ii for ii in flux_scan_list])
@@ -319,24 +365,161 @@ else:
     delay_field_select_string = ",".join(str(ii) for ii in delay_field_list)
     task_logprint(f"Delay calibrator(s) are fields {delay_field_select_string}")
 
-if len(polarization_state_IDs) == 0:
-    task_logprint("No polarization calibration scans defined, no polarization calibration possible.")
-    polarization_scan_select_string = ""
-    polarization_field_select_string = ""
+polcals_A = ['J1331+3030', '3c286', '3C286', 'J0521+1638', '3c138', '3C138', 'J0137+3309', '0137+331=3C48', '3c48', '3C48']
+#np.genfromtxt('../../EVLA_Scripted_Pipeline/EVLA_SCRIPTED_PIPELINE/data/catA_polcals.dat', dtype=np.str_)
+polcals_C = ['J0542+4951', '3c147', '3C147', 'J1407+2827', 'OQ208', 'Oq208', 'oq208', 'J0259+0747']
+
+if len(polarization_angle_state_IDs) == 0:
+    if do_pol == True:
+        warnings.warn("WARNING: No polarization calibration scans defined, but polarization calibration was requested!")
+        task_logprint("WARNING: No polarization calibration scans defined, but polarization calibration was requested.")
+        warnings.warn("Performing metadata check for available polarization calibrators...")
+        task_logprint("Searching for polarization angle calibrators...")
+        for i in range(len(polcals_A)):
+            if str(polcals_A[i]) in field_names:
+                polAngleField = str(polcals_A[i])
+                target_index = np.where(field_names==polcals_A[i]) #search for category A pol calibrators in field name list
+                temp = tb.query('FIELD_ID == %s' % target_index[0][0])
+                pol_angle_state_ids = np.unique(temp.getcol('STATE_ID'))
+                task_logprint('Found scan for %s!' % polcals_A[i])
+                task_logprint('STATE_ID for this target is: %s' % pol_angle_state_ids)
+                polarization_angle_state_IDs.append(pol_angle_state_ids[0])
+                calibrator_state_IDs.append(pol_angle_state_ids[0])
+                break
+        if len(polarization_angle_state_IDs) == 0: #if nothing was found for primary pol angle calibrator, set do_pol = False
+            do_pol = False
+            warnings.warn("WARNING: No polarization calibration scans found, no polarization calibration possible!")
+            task_logprint("WARNING: No polarization calibration scans found, no polarization calibration possible.")
+            polarization_angle_scan_select_string = ""
+            polarization_angle_field_select_string = ""
+            polarization_lkg_scan_select_string = ""
+            polarization_lkg_field_select_string = ""
+        else:
+            task_logprint("Searching for polarization leakage calibrators...")
+            has_leak_polcal = False
+            for i in range(len(polcals_C)):
+                if polcals_C[i] in field_names:
+                    has_leak_polcal = True
+                    polLeakField = polcals_C[i]
+                    target_index = np.where(field_names==polcals_C[i]) #search for category C (leakage) pol calibrators in field name list
+                    temp = tb.query('FIELD_ID == %s' % target_index[0][0])
+                    pol_lkg_state_ids = np.unique(temp.getcol('STATE_ID'))
+                    task_logprint('Found scan for %s!' % polcals_C[i])
+                    task_logprint('STATE_ID for this target is: %s' % pol_lkg_state_ids)
+                    polarization_lkg_state_IDs.append(pol_lkg_state_ids[0])
+                    calibrator_state_IDs.append(pol_lkg_state_ids[0])
+                    break
+            if has_leak_polcal == False: #if no pol leakage calibrator was found (i.e. pol leakage cal is not a standard one) request name of calibrator manually
+                warnings.warn('WARNING: None of the standard pol leakage calibrators are availble in the MS')
+                task_logprint('WARNING: None of the standard pol leakage calibrators are availble in the MS')
+                manual_leak_polcalfield ='N'
+                #str(input("Would you like to manually enter the field name of the pol leakage calibrator? (Y or N)")).upper()
+                if manual_leak_polcalfield == 'Y':
+                    polLeakField = str(input("Enter field name of pol leakage calibrator: "))
+
+                    target_index = np.where(field_names==polLeakField) #search for category C (leakage) pol calibrators in field name list
+                    temp = tb.query('FIELD_ID == %s' % target_index[0][0])
+                    pol_lkg_state_ids = np.unique(temp.getcol('STATE_ID'))
+                    #print('target_index = ', target_index)
+                    #print('state_ids = ', state_ids)
+                    task_logprint('Found scan for %s!' % polcals_C[i])
+                    task_logprint('STATE_ID for this target is: %s' % pol_lkg_state_ids)
+                    polarization_lkg_state_IDs.append(pol_lkg_state_ids[0])
+                    calibrator_state_IDs.append(pol_lkg_state_ids[0])
+
+                    polarization_angle_state_select_string = "STATE_ID in [%s" % polarization_angle_state_IDs[0]
+                    for state_ID in range(1, len(polarization_angle_state_IDs)):
+                        polarization_angle_state_select_string += ",%s" % polarization_angle_state_IDs[state_ID]
+                    polarization_angle_state_select_string += "]"
+                    subtable_polangle = tb.query(polarization_angle_state_select_string)
+
+                    polarization_angle_scan_list = list(np.unique(subtable_polangle.getcol("SCAN_NUMBER")))
+                    polarization_angle_scan_select_string = ",".join(str(ii) for ii in polarization_angle_scan_list)
+                    task_logprint(f"Polarization angle calibrator(s) scans are {polarization_angle_scan_select_string}")
+                    polarization_angle_field_list = list(np.unique(subtable_polangle.getcol("FIELD_ID")))
+                    subtable_polangle.close()
+                    polarization_angle_field_select_string = ",".join(str(ii) for ii in polarization_angle_field_list)
+                    task_logprint(f"Polarization angle calibrator(s) are fields {polarization_angle_field_select_string}")
+                    
+                    polarization_lkg_state_select_string = "STATE_ID in [%s" % polarization_lkg_state_IDs[0]
+                    for state_ID in range(1, len(polarization_lkg_state_IDs)):
+                        polarization_lkg_state_select_string += ",%s" % polarization_lkg_state_IDs[state_ID]
+                    polarization_lkg_state_select_string += "]"
+                    subtable_pollkg = tb.query(polarization_lkg_state_select_string)
+
+                    polarization_lkg_scan_list = list(np.unique(subtable_pollkg.getcol("SCAN_NUMBER")))
+                    polarization_lkg_scan_select_string = ",".join(str(ii) for ii in polarization_lkg_scan_list)
+                    task_logprint(f"Polarization lkg calibrator(s) scans are {polarization_lkg_scan_select_string}")
+                    polarization_lkg_field_list = list(np.unique(subtable_pollkg.getcol("FIELD_ID")))
+                    subtable_pollkg.close()
+                    polarization_lkg_field_select_string = ",".join(str(ii) for ii in polarization_lkg_field_list)
+                    task_logprint(f"Polarization lkg calibrator(s) are fields {polarization_lkg_field_select_string}")
+                    
+                else:
+                    warnings.warn('WARNING: No pol leakage calibrator available. Skipping polarization calibration!')
+                    task_logprint('WARNING: No pol leakage calibrator available. Skipping polarization calibration!') #if no leakage calibrator found, set do_pol = False
+                    do_pol = False
+
+            else:
+                polarization_angle_state_select_string = "STATE_ID in [%s" % polarization_angle_state_IDs[0]
+                for state_ID in range(1, len(polarization_angle_state_IDs)):
+                    polarization_angle_state_select_string += ",%s" % polarization_angle_state_IDs[state_ID]
+                polarization_angle_state_select_string += "]"
+                subtable_polangle = tb.query(polarization_angle_state_select_string)
+
+                polarization_angle_scan_list = list(np.unique(subtable_polangle.getcol("SCAN_NUMBER")))
+                polarization_angle_scan_select_string = ",".join(str(ii) for ii in polarization_angle_scan_list)
+                task_logprint(f"Polarization angle calibrator(s) scans are {polarization_angle_scan_select_string}")
+                polarization_angle_field_list = list(np.unique(subtable_polangle.getcol("FIELD_ID")))
+                subtable_polangle.close()
+                polarization_angle_field_select_string = ",".join(str(ii) for ii in polarization_angle_field_list)
+                task_logprint(f"Polarization angle calibrator(s) are fields {polarization_angle_field_select_string}")
+                    
+                polarization_lkg_state_select_string = "STATE_ID in [%s" % polarization_lkg_state_IDs[0]
+                for state_ID in range(1, len(polarization_lkg_state_IDs)):
+                    polarization_lkg_state_select_string += ",%s" % polarization_lkg_state_IDs[state_ID]
+                polarization_lkg_state_select_string += "]"
+                subtable_pollkg = tb.query(polarization_lkg_state_select_string)
+
+                polarization_lkg_scan_list = list(np.unique(subtable_pollkg.getcol("SCAN_NUMBER")))
+                polarization_lkg_scan_select_string = ",".join(str(ii) for ii in polarization_lkg_scan_list)
+                task_logprint(f"Polarization lkg calibrator(s) scans are {polarization_lkg_scan_select_string}")
+                polarization_lkg_field_list = list(np.unique(subtable_pollkg.getcol("FIELD_ID")))
+                subtable_pollkg.close()
+                polarization_lkg_field_select_string = ",".join(str(ii) for ii in polarization_lkg_field_list)
+                task_logprint(f"Polarization lkg calibrator(s) are fields {polarization_lkg_field_select_string}")
+                
+
+            
 else:
-    task_logprint("Warning: polarization calibration scans found, but polarization calibration not yet implemented")
-    polarization_state_select_string = "STATE_ID in [%s" % polarization_state_IDs[0]
-    for state_ID in range(1, len(polarization_state_IDs)):
-        polarization_state_select_string += ",%s" % polarization_state_IDs[state_ID]
-    polarization_state_select_string += "]"
-    subtable = tb.query(polarization_state_select_string)
-    polarization_scan_list = list(np.unique(subtable.getcol("SCAN_NUMBER")))
-    polarization_scan_select_string = ",".join(str(ii) for ii in polarization_scan_list)
-    task_logprint(f"Polarization calibrator(s) scans are {polarization_scan_select_string}")
-    polarization_field_list = list(np.unique(subtable.getcol("FIELD_ID")))
-    subtable.close()
-    polarization_field_select_string = ",".join(str(ii) for ii in polarization_field_list)
-    task_logprint(f"Polarization calibrator(s) are fields {polarization_field_select_string}")
+    
+    polarization_angle_state_select_string = "STATE_ID in [%s" % polarization_angle_state_IDs[0]
+    for state_ID in range(1, len(polarization_angle_state_IDs)):
+        polarization_angle_state_select_string += ",%s" % polarization_angle_state_IDs[state_ID]
+    polarization_angle_state_select_string += "]"
+    subtable_polangle = tb.query(polarization_angle_state_select_string)
+
+    polarization_angle_scan_list = list(np.unique(subtable_polangle.getcol("SCAN_NUMBER")))
+    polarization_angle_scan_select_string = ",".join(str(ii) for ii in polarization_angle_scan_list)
+    task_logprint(f"Polarization angle calibrator(s) scans are {polarization_angle_scan_select_string}")
+    polarization_angle_field_list = list(np.unique(subtable_polangle.getcol("FIELD_ID")))
+    subtable_polangle.close()
+    polarization_angle_field_select_string = ",".join(str(ii) for ii in polarization_angle_field_list)
+    task_logprint(f"Polarization angle calibrator(s) are fields {polarization_angle_field_select_string}")
+
+    polarization_lkg_state_select_string = "STATE_ID in [%s" % polarization_lkg_state_IDs[0]
+    for state_ID in range(1, len(polarization_lkg_state_IDs)):
+        polarization_lkg_state_select_string += ",%s" % polarization_lkg_state_IDs[state_ID]
+    polarization_lkg_state_select_string += "]"
+    subtable_pollkg = tb.query(polarization_lkg_state_select_string)
+
+    polarization_lkg_scan_list = list(np.unique(subtable_pollkg.getcol("SCAN_NUMBER")))
+    polarization_lkg_scan_select_string = ",".join(str(ii) for ii in polarization_lkg_scan_list)
+    task_logprint(f"Polarization lkg calibrator(s) scans are {polarization_lkg_scan_select_string}")
+    polarization_lkg_field_list = list(np.unique(subtable_pollkg.getcol("FIELD_ID")))
+    subtable_pollkg.close()
+    polarization_lkg_field_select_string = ",".join(str(ii) for ii in polarization_lkg_field_list)
+    task_logprint(f"Polarization lkg calibrator(s) are fields {polarization_lkg_field_select_string}")
 
 if len(phase_state_IDs) == 0:
     QA2_msinfo = "Fail"
@@ -432,6 +615,7 @@ minBL_for_cal = max(3, int(numAntenna / 2.0))
 
 # Determine if 3C84 was used as a bandpass or delay calibrator
 positions = field_positions.T.squeeze()
+print('3C84 positions = ', positions)
 fields_3C84 = find_3C84(positions)
 cal3C84_d = False
 cal3C84_bp = False
@@ -531,18 +715,21 @@ else:
 
 
 # Plot online flags
-task_logprint("Plotting online flags")
-os.system("rm -rf onlineFlags.png")
-flagcmd(
+try:
+    task_logprint("Plotting online flags")
+    online_flag_name = msname.rstrip("ms") + "flagonline.txt"
+    os.system("rm -rf onlineFlags.png")
+    flagcmd(
         vis=msname,
         inpmode="list",
-        inpfile="onlineFlags.txt",
+        inpfile=online_flag_name,
         action="plot",
         plotfile="onlineFlags.png",
         savepars=False,
-)
-task_logprint("Online flags plot onlineFlags.png")
-
+    )
+    task_logprint("Online flags plot onlineFlags.png")
+except Exception:
+    task_logprint("Failed to plot online flags")
 
 # Plot antenna locations
 task_logprint("Plotting antenna positions (linear)")

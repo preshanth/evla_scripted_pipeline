@@ -13,7 +13,7 @@ def task_logprint(msg):
     logprint(msg, logfileout="logs/checkflag.log")
 
 
-task_logprint("Starting EVLA_pipe_checkflag.py")
+task_logprint("*** Starting EVLA_pipe_checkflag.py ***")
 time_list = runtiming("checkflag", "start")
 QA2_checkflag = "Pass"
 

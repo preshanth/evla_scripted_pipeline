@@ -10,7 +10,7 @@ from casaplotms import plotms
 from . import pipeline_save
 from .utils import runtiming
 
-logprint("Starting EVLA_pipe_fluxflag.py", logfileout='logs/fluxflag.log')
+logprint("*** Starting EVLA_pipe_fluxflag.py ***", logfileout='logs/fluxflag.log')
 
 plotms(
     vis="fluxgaincal.g",

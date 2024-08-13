@@ -12,7 +12,7 @@ def task_logprint(msg):
     logprint(msg, logfileout="logs/filecollect.log")
 
 
-task_logprint("Starting EVLA_pipe_plotsummary.py")
+task_logprint("*** Starting EVLA_pipe_plotsummary.py ***")
 time_list = runtiming("plotsummary", "start")
 QA2_plotsummary = "Pass"
 
@@ -93,7 +93,7 @@ for ii in field_ids:
         iteraxis="",
         coloraxis="spw",
         plotrange=[],
-        title=f"Field {field}, {field_names[ii]}",
+        title=f"Field {ii}, {field_names[ii]}",
         xlabel="",
         ylabel="",
         showmajorgrid=False,

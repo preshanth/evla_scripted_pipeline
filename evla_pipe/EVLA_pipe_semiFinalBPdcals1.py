@@ -28,7 +28,7 @@ def task_logprint(msg):
 
 
 # Find reference antenna again after all that flagging
-task_logprint("Starting EVLA_pipe_semiFinalBPdcals1.py")
+task_logprint("*** Starting EVLA_pipe_semiFinalBPdcals1.py ***")
 time_list = runtiming("semiFinalBPdcals1", "start")
 QA2_semiFinalBPdcals1 = "Pass"
 
@@ -159,13 +159,13 @@ for ii in range(nplots):
     )
 
 # Do initial gaincal on BP calibrator then semi-final BP calibration
-os.system("rm -rf BPinitialgain.g")
+os.system("rm -rf BPdinitialgain.g")
 GainTables = copy.copy(priorcals)
 GainTables.append("delay.k")
 uvrange = uvrange3C84 if cal3C84_bp else ""
 gaincal(
     vis=ms_active,
-    caltable="BPinitialgain.g",
+    caltable="BPdinitialgain.g",
     field="",
     spw=tst_bpass_spw,
     selectdata=True,
@@ -218,7 +218,7 @@ for ii in range(nplots):
 os.system("rm -rf BPcal.b")
 BPGainTables = copy.copy(priorcals)
 BPGainTables.append("delay.k")
-BPGainTables.append("BPinitialgain.g")
+BPGainTables.append("BPdinitialgain.g")
 uvrange = uvrange3C84 if cal3C84_bp else ""
 bandpass(
     vis=ms_active,

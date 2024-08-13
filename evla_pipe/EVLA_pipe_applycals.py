@@ -15,7 +15,7 @@ def task_logprint(msg):
     logprint(msg, logfileout="logs/applycals.log")
 
 
-task_logprint("Starting EVLA_pipe_applycals.py")
+task_logprint("*** Starting EVLA_pipe_applycals.py ***")
 time_list = runtiming("applycals", "start")
 QA2_applycals = "Pass"
 

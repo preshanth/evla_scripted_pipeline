@@ -13,7 +13,7 @@ def task_logprint(msg):
     logprint(msg, logfileout="logs/statwt.log")
 
 
-task_logprint("Starting EVLA_pipe_statwt.py")
+task_logprint("*** Starting EVLA_pipe_statwt.py ***")
 time_list = runtiming("checkflag", "start")
 QA2_statwt = "Pass"
 

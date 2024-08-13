@@ -18,7 +18,7 @@ def write_plots(wlog, pattern):
         wlog.write(f'<br><img src="./{os.path.basename(filen)}">\n')
 
 
-logprint("Writing web logs", logfileout="logs/weblog.log")
+logprint("*** Writing web logs ***", logfileout="logs/weblog.log")
 
 # Ensure that all QA2 flag variables are set, even if their respective scripts
 # weren't run.

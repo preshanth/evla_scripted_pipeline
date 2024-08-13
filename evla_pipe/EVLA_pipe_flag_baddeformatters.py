@@ -13,7 +13,7 @@ def task_logprint(msg):
     logprint(msg, logfileout="logs/flag_baddeformatters.log")
 
 
-task_logprint("Starting EVLA_pipe_flag_baddeformatters.py")
+task_logprint("*** Starting EVLA_pipe_flag_baddeformatters.py ***")
 time_list = runtiming("flag_baddeformatters", "start")
 QA2_flag_baddeformatters = "Pass"
 
@@ -158,7 +158,7 @@ def flag_on_deformatters(
                 if len(flaggedspws) > 0:
                     # These spws have no unflagged channels in any pol
                     flaggedspwlist.extend(flaggedspws)
-                    task_logprint(f"Ant {iant} ({antNAme}) {rrx} {bband} no unflagged solutions spws={flaggedspws}")
+                    task_logprint(f"Ant {iant} ({antName}) {rrx} {bband} no unflagged solutions spws={flaggedspws}")
         if len(badspwlist) > 0:
             spwstr = ""
             for ispw in badspwlist:

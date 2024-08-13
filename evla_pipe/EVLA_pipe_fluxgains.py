@@ -19,7 +19,7 @@ def task_logprint(msg):
     logprint(msg, logfileout="logs/fluxgains.log")
 
 
-task_logprint("Starting EVLA_pipe_fluxgains.py")
+task_logprint("*** Starting EVLA_pipe_fluxgains.py ***")
 time_list = runtiming("fluxgains", "start")
 QA2_fluxgains = "Pass"
 

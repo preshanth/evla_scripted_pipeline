@@ -12,7 +12,7 @@ def task_logprint(msg):
     logprint(msg, logfileout="logs/hanning.log")
 
 
-task_logprint("Starting EVLA_pipe_hanning.py")
+task_logprint("*** Starting EVLA_pipe_hanning.py ***")
 time_list = runtiming('hanning', 'start')
 QA2_hanning = "Pass"
 

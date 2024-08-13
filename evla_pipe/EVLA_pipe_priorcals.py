@@ -18,7 +18,7 @@ def task_logprint(msg):
     logprint(msg, logfileout="logs/priorcals.log")
 
 
-task_logprint("Starting EVLA_pipe_priorcals.py")
+task_logprint("*** Starting EVLA_pipe_priorcals.py ***")
 time_list = runtiming("priorcals", "start")
 QA2_priorcals = "Pass"
 

@@ -23,7 +23,7 @@ def task_logprint(msg):
     logprint(msg, logfileout="logs/testgains.log")
 
 
-task_logprint("Starting EVLA_pipe_testgains.py")
+task_logprint("*** Starting EVLA_pipe_testgains.py ***")
 time_list = runtiming("testgains", "start")
 QA2_testgains = "Pass"
 

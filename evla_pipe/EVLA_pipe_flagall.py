@@ -17,7 +17,7 @@ def task_logprint(msg):
 
 
 # Apply deterministic flags
-task_logprint("Starting EVLA_pipe_flagall.py")
+task_logprint("*** Starting EVLA_pipe_flagall.py ***")
 time_list = runtiming("flagall", "start")
 QA2_flagall = "Pass"
 
@@ -44,19 +44,23 @@ task_logprint("Initial flags summary")
 start_total = myinitialflags["total"]
 start_flagged = myinitialflags["flagged"]
 task_logprint("Initial flagged fraction = " + str(start_flagged / start_total))
-
-flagdata(
-    vis=ms_active,
-    mode="list",
-    inpfile="onlineFlags.txt",
-    tbuff=1.5 * int_time,
-    reason="ANTENNA_NOT_ON_SOURCE",
-    action="apply",
-    flagbackup=True,
-    savepars=True,
-    outfile=outputflagfile,
-)
-task_logprint("ANTENNA_NOT_ON_SOURCE flags carried out")
+#adding a test comment...
+online_flag_name = msname.rstrip("ms") + "flagonline.txt"
+if os.path.isfile(online_flag_name):
+    flagdata(
+        vis=ms_active,
+        mode="list",
+        inpfile=online_flag_name,
+        tbuff=1.5 * int_time,
+        reason="ANTENNA_NOT_ON_SOURCE",
+        action="apply",
+        flagbackup=True,
+        savepars=True,
+        outfile=outputflagfile,
+    )
+    task_logprint("ANTENNA_NOT_ON_SOURCE flags carried out")
+else:
+    task_logprint("No Online flags txt file! ANTENNA_NOT_ON_SOURCE flags NOT carried out!!")
 
 # Now shadow flagging
 flagdata(
@@ -83,13 +87,16 @@ init_on_source_vis = start_total - slewshadowflags["flagged"]
 
 task_logprint("Initial on-source fraction = " + str(init_on_source_vis / start_total))
 
-# Restore original flags
-flagmanager(
-    vis=ms_active,
-    mode="restore",
-    versionname="flagdata_1",
-    merge="replace",
-)
+try:
+    # Restore original flags
+    flagmanager(
+        vis=ms_active,
+        mode="restore",
+        versionname="flagdata_1",
+        merge="replace",
+    )
+except:
+    task_logprint("Cannot restore original flags!")
 
 os.system(f"rm -rf {outputflagfile}")
 
@@ -161,19 +168,22 @@ task_logprint(
     "Delta SHADOW flagged fraction = " + str(shadow_flagged / aftershadow_total)
 )
 
-flagdata(
-    vis=ms_active,
-    mode="list",
-    inpfile="onlineFlags.txt",
-    tbuff=1.5 * int_time,
-    reason="any",
-    action="apply",
-    flagbackup=False,
-    savepars=True,
-    outfile=outputflagfile,
-)
+if os.path.isfile(online_flag_name):
+    flagdata(
+        vis=ms_active,
+        mode="list",
+        inpfile=online_flag_name,
+        tbuff=1.5 * int_time,
+        reason="any",
+        action="apply",
+        flagbackup=False,
+        savepars=True,
+        outfile=outputflagfile,
+    )
 
-task_logprint("Online flags applied")
+    task_logprint("Online flags applied")
+else:
+    task_logprint("No online flags applied!")
 
 # Define list of flagdata parameters to use in 'list' mode
 flagdata_list = []

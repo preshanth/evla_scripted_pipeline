@@ -12,7 +12,7 @@ def task_logprint(msg):
     logprint(msg, logfileout="logs/startup.log")
 
 
-task_logprint("Starting EVLA_pipe_startup.py")
+task_logprint("*** Starting EVLA_pipe_startup.py ***")
 runtiming('startup', 'start')
 
 task_logprint(f"Running from path: {os.getcwd()}")
@@ -82,6 +82,14 @@ except NameError:
     myHanning_already_set = 0
     hanning_input_results = input("Hanning smooth the data (y/[n]): ").lower()
     do_hanning = hanning_input_results not in ("", "n")
+
+myPol_already_set = 1
+try:
+    myPol
+except NameError:
+    myPol_already_set = 0
+    dopol_input_results = input("Perform polarization calibration? (y/[n]): ").lower()
+    do_pol = dopol_input_results not in ("", "n")
 
 ms_active = msname
 
