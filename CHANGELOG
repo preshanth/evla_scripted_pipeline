@@ -23,7 +23,8 @@ ms using importasdm from the sdm to the ms. Added the copying commands to do so.
 EVLA_pipe_msinfo.py
 -Added the option to make logarithmic antenna positions plot.
 -changed 'xml' to 'list' in the flagcmd execution to make the online flags plot using the file onlineFlags.txt
-made by importasdm
+	made by importasdm
+-added additional parsing to figure polarization calibrators both primary and secondary.
 
 EVLA_pipe_flagall.py
 -To reduce the dependance on the Flag.xml, changed inpmode to 'list' in flagcmd to apply the online flags using
@@ -34,4 +35,5 @@ not done by using the file onlineFlags.txt made by importasdm instead of the Fla
 EVLA_pipe_weblog.py
 added the syntax to place the log antenna positions in the weblog
 
-
+data
+- Directory now contains polarization models for primary and seconday calibrators.
