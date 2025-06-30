@@ -1,128 +1,82 @@
-"""
-The pipeline assumes all files for a single dataset are located in
-the current directory, and that this directory contains only files
-relating to this dataset.
-"""
+# EVLA_pipe_startup.py
+import os
+from .utils import runtiming, logprint
+from . import pipeline_save  # We might reconsider this later
 
-from . import pipeline_save
-from .utils import (runtiming, logprint)
+def pipeline_startup(pipeline_context):
+    """
+    Performs initial startup tasks for the EVLA pipeline, including
+    getting the SDM name and other initial parameters.
 
+    Args:
+        pipeline_context (dict): A dictionary to store and share the pipeline's context.
 
-def task_logprint(msg):
-    logprint(msg, logfileout="logs/startup.log")
+    Returns:
+        dict: Updated pipeline context with initial parameters.
+    """
+    task_logprint = lambda msg: logprint(msg, logfileout="logs/startup.log")
+    task_logprint("*** Starting pipeline_startup ***")
+    runtiming('startup', 'start')
 
+    task_logprint(f"Running from path: {os.getcwd()}")
 
-task_logprint("*** Starting EVLA_pipe_startup.py ***")
-runtiming('startup', 'start')
+    # File names
+    SDM_name_already_defined = "SDM_name" in pipeline_context
+    if not SDM_name_already_defined:
+        SDM_name = input("Enter SDM file name: ")
+        if SDM_name == "":
+            raise RuntimeError("SDM name must be given.")
+        pipeline_context["SDM_name"] = SDM_name
+    else:
+        SDM_name = pipeline_context["SDM_name"]
 
-task_logprint(f"Running from path: {os.getcwd()}")
+    # Trap for '.ms', just in case, also for directory slash if present:
+    SDM_name = SDM_name.rstrip('/')
+    if SDM_name.endswith('.ms'):
+        SDM_name = SDM_name[:-3]
+    msname = f"{SDM_name}.ms"
 
-# File names
-#
-# if SDM_name is already defined, then assume it holds the SDM directory
-# name, otherwise, read it in from stdin
-#
-SDM_name_already_defined = 1
-try:
-    SDM_name
-except NameError:
-    SDM_name_already_defined = 0
-    SDM_name = input("Enter SDM file name: ")
-    if SDM_name == "":
-        raise RuntimeError("SDM name must be given.")
+    if SDM_name_already_defined:
+        msname = msname.replace('rawdata', 'working')
 
-# Trap for '.ms', just in case, also for directory slash if present:
-SDM_name = SDM_name.rstrip('/')
-if SDM_name.endswith('.ms'):
-    SDM_name = SDM_name[:-3]
-msname = f"{SDM_name}.ms"
+    if not os.path.isdir(msname):
+        while not os.path.isdir(SDM_name) and not os.path.isdir(msname):
+            print(f"{SDM_name} is not a valid SDM directory")
+            SDM_name = input("Re-enter a valid SDM directory (without '.ms'): ")
+            SDM_name = SDM_name.rstrip('/')
+            if SDM_name.endswith('.ms'):
+                SDM_name = SDM_name[:-3]
+            msname = f"{SDM_name}.ms"
+        pipeline_context["SDM_name"] = SDM_name # Update SDM name if re-entered
 
-# FIXME This is terribly non-robust.  should really trap all the inputs from
-# the automatic pipeline (the root directory and the relative paths).  and also
-# make sure that 'rawdata' only occurs once in the string.  but for now, take
-# the quick and easy route.
-if SDM_name_already_defined:
-    msname = msname.replace('rawdata', 'working')
+    pipeline_context["msname"] = msname
+    mshsmooth = f"{SDM_name}.hsmooth.ms"
+    if SDM_name_already_defined:
+        mshsmooth = mshsmooth.replace('rawdata', 'working')
+    pipeline_context["mshsmooth"] = mshsmooth
+    ms_spave = f"{SDM_name}.spave.ms"
+    if SDM_name_already_defined:
+        ms_spave = ms_spave.replace('rawdata', 'working')
+    pipeline_context["ms_spave"] = ms_spave
 
-if not os.path.isdir(msname):
-    while not os.path.isdir(SDM_name) and not os.path.isdir(msname):
-        print(f"{SDM_name} is not a valid SDM directory")
-        SDM_name = input("Re-enter a valid SDM directory (without '.ms'): ")
-        SDM_name = SDM_name.rstrip('/')
-        if SDM_name.endswith('.ms'):
-            SDM_name = SDM_name[:-3]
-        msname = f"{SDM_name}.ms"
+    task_logprint(f"SDM used is: {SDM_name}")
 
-mshsmooth = f"{SDM_name}.hsmooth.ms"
-if SDM_name_already_defined:
-    mshsmooth = mshsmooth.replace('rawdata', 'working')
-ms_spave = f"{SDM_name}.spave.ms"
-if SDM_name_already_defined:
-    ms_spave = ms_spave.replace('rawdata', 'working')
+    # Other inputs:
+    pipeline_context["scratch"] = pipeline_context.get("scratch", input("Create the real model column (y/[n]): ").lower() == "y")
+    pipeline_context["do_hanning"] = pipeline_context.get("do_hanning", input("Hanning smooth the data (y/[n]): ").lower() not in ("", "n"))
+    pipeline_context["do_pol"] = pipeline_context.get("do_pol", input("Perform polarization calibration? (y/[n]): ").lower() not in ("", "n"))
 
-task_logprint(f"SDM used is: {SDM_name}")
+    pipeline_context["ms_active"] = pipeline_context.get("ms_active", msname)
 
-# Other inputs:
+    pipeline_context["projectCode"] = pipeline_context.get("projectCode", input("Enter project code (or 'Unknown'): ") or 'Unknown')
+    pipeline_context["piName"] = pipeline_context.get("piName", input("Enter PI name (or 'Unknown'): ") or 'Unknown')
+    pipeline_context["piGlobalId"] = pipeline_context.get("piGlobalId", input("Enter PI global ID (or 'Unknown'): ") or 'Unknown')
+    pipeline_context["observeDateString"] = pipeline_context.get("observeDateString", input("Enter observe date string (or 'Unknown'): ") or 'Unknown')
+    pipeline_context["pipelineDateString"] = pipeline_context.get("pipelineDateString", input("Enter pipeline date string (or 'Unknown'): ") or 'Unknown')
 
-# Ask if a a real model column should be created, or the virtual model should
-# be used.
-mymodel_already_set = 1
-try:
-    mymodel
-except NameError:
-    mymodel_already_set = 0
-    mymodel = input("Create the real model column (y/[n]): ").lower()
-    mymodel = "n" if mymodel != "y" else mymodel
-    scratch = mymodel == "y"
+    task_logprint("Finished pipeline_startup")
+    runtiming('startup', 'end')
 
-myHanning_already_set = 1
-try:
-    myHanning
-except NameError:
-    myHanning_already_set = 0
-    hanning_input_results = input("Hanning smooth the data (y/[n]): ").lower()
-    do_hanning = hanning_input_results not in ("", "n")
+    # pipeline_save() # We'll handle saving in the main orchestration
 
-myPol_already_set = 1
-try:
-    myPol
-except NameError:
-    myPol_already_set = 0
-    dopol_input_results = input("Perform polarization calibration? (y/[n]): ").lower()
-    do_pol = dopol_input_results not in ("", "n")
-
-ms_active = msname
-
-# And ask for auxiliary information.
-try:
-    projectCode
-except NameError:
-    projectCode = 'Unknown'
-try:
-    piName
-except NameError:
-    piName = 'Unknown'
-try:
-    piGlobalId
-except NameError:
-    piGlobalId = 'Unknown'
-try:
-    observeDateString
-except NameError:
-    observeDateString = 'Unknown'
-try:
-    pipelineDateString
-except NameError:
-    pipelineDateString = 'Unknown'
-
-
-# For now, use same ms name for Hanning smoothed data, for speed.
-# However, we only want to smooth the data the first time around, we do
-# not want to do more smoothing on restarts, so note that this parameter
-# is reset to "n" after doing the smoothing in EVLA_pipe_hanning.py.
-
-task_logprint("Finished EVLA_pipe_startup.py")
-runtiming('startup', 'end')
-
-pipeline_save()
-
+    return pipeline_context

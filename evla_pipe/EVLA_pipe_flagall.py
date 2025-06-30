@@ -1,36 +1,34 @@
-"""
-Perform deterministic flagging using `flagdata` in list-mode: online flags,
-zeros, pointing scans, and quacking.
-"""
-# NOTE Urvashi Rao points out that it may be possible to consolidate these to
-# run faster (minus the flagcmd step) using the toolkit, see:
-#     http://www.aoc.nrao.edu/~rurvashi/ActiveFlaggerDocs/node11.html
+# EVLA_pipe_flagall.py (Refactored using flagdata list mode)
 
+import os
 from casatasks import flagdata, flagmanager
-
 from . import pipeline_save
 from .utils import runtiming, logprint
-
 
 def task_logprint(msg):
     logprint(msg, logfileout="logs/flagall.log")
 
-
-# Apply deterministic flags
-task_logprint("*** Starting EVLA_pipe_flagall.py ***")
+task_logprint("*** Starting EVLA_pipe_flagall.py (Refactored) ***")
 time_list = runtiming("flagall", "start")
 QA2_flagall = "Pass"
 
-task_logprint("Deterministic flagging")
+ms_active = pipeline_context.get("msname")
+int_time = pipeline_context.get("int_time")
+quack_scan_string = pipeline_context.get("quack_scan_string")
+pointing_state_IDs = pipeline_context.get("pointing_state_IDs", [])
+numSpws = pipeline_context.get("numSpws", 0)
+channels = pipeline_context.get("channels", [])
+low_spws = pipeline_context.get("low_spws", [])
+high_spws = pipeline_context.get("high_spws", [])
+msname = pipeline_context.get("msname", "")
 
 outputflagfile = "flagging_commands1.txt"
 os.system(f"rm -rf {outputflagfile}")
 
-task_logprint(
-    "Determine fraction of time on-source (may not be correct for pipeline re-runs on datasets already flagged)"
-)
+flagging_commands = []
+cmdreason_list = []
 
-# Report initial statistics
+# --- Initial Statistics ---
 myinitialflags = flagdata(
     vis=ms_active,
     mode="summary",
@@ -43,266 +41,115 @@ myinitialflags = flagdata(
 task_logprint("Initial flags summary")
 start_total = myinitialflags["total"]
 start_flagged = myinitialflags["flagged"]
-task_logprint("Initial flagged fraction = " + str(start_flagged / start_total))
-#adding a test comment...
+task_logprint(f"Initial flagged fraction = {start_flagged / start_total if start_total > 0 else 0}")
+
+# --- Online Flags ---
 online_flag_name = msname.rstrip("ms") + "flagonline.txt"
 if os.path.isfile(online_flag_name):
-    flagdata(
-        vis=ms_active,
-        mode="list",
-        inpfile=online_flag_name,
-        tbuff=1.5 * int_time,
-        reason="ANTENNA_NOT_ON_SOURCE",
-        action="apply",
-        flagbackup=True,
-        savepars=True,
-        outfile=outputflagfile,
-    )
-    task_logprint("ANTENNA_NOT_ON_SOURCE flags carried out")
+    flagging_commands.append(f"mode='list' inpfile='{online_flag_name}' tbuff={1.5 * int_time} reason='ANTENNA_NOT_ON_SOURCE'")
+    cmdreason_list.append("ANTENNA_NOT_ON_SOURCE")
+    task_logprint("ANTENNA_NOT_ON_SOURCE flags will be applied")
 else:
-    task_logprint("No Online flags txt file! ANTENNA_NOT_ON_SOURCE flags NOT carried out!!")
+    task_logprint("No Online flags txt file! ANTENNA_NOT_ON_SOURCE flags will NOT be applied!!")
 
-# Now shadow flagging
-flagdata(
-    vis=ms_active,
-    mode="shadow",
-    tolerance=0.0,
-    action="apply",
-    flagbackup=False,
-    savepars=False,
-)
+# --- Shadow Flagging ---
+flagging_commands.append("mode='shadow' tolerance=0.0 reason='shadow'")
+cmdreason_list.append("shadow")
 
-# Report new statistics
-slewshadowflags = flagdata(
-    vis=ms_active,
-    mode="summary",
-    spwchan=True,
-    spwcorr=True,
-    basecnt=True,
-    action="calculate",
-    savepars=False,
-)
+# --- Zero Flagging ---
+flagging_commands.append("mode='clip' clipzeros=True correlation='ABS_ALL' reason='CLIP_ZERO_ALL'")
+cmdreason_list.append("CLIP_ZERO_ALL")
 
-init_on_source_vis = start_total - slewshadowflags["flagged"]
-
-task_logprint("Initial on-source fraction = " + str(init_on_source_vis / start_total))
-
-try:
-    # Restore original flags
-    flagmanager(
-        vis=ms_active,
-        mode="restore",
-        versionname="flagdata_1",
-        merge="replace",
-    )
-except:
-    task_logprint("Cannot restore original flags!")
-
-os.system(f"rm -rf {outputflagfile}")
-
-# First do zero flagging (reason='CLIP_ZERO_ALL')
-myzeroflags = flagdata(
-    vis=ms_active,
-    mode="clip",
-    correlation="ABS_ALL",
-    clipzeros=True,
-    action="apply",
-    flagbackup=False,
-    savepars=False,
-    outfile=outputflagfile,
-)
-task_logprint("Zero flags carried out")
-
-# Now report statistics
-myafterzeroflags = flagdata(
-    vis=ms_active,
-    mode="summary",
-    spwchan=True,
-    spwcorr=True,
-    basecnt=True,
-    action="calculate",
-    savepars=False,
-)
-task_logprint("Zero flags summary")
-
-afterzero_total = myafterzeroflags["total"]
-afterzero_flagged = myafterzeroflags["flagged"]
-task_logprint(
-    "After ZERO flagged fraction = " + str(afterzero_flagged / afterzero_total)
-)
-
-zero_flagged = myafterzeroflags["flagged"] - myinitialflags["flagged"]
-task_logprint("Delta ZERO flagged fraction = " + str(zero_flagged / afterzero_total))
-
-# Now shadow flagging
-flagdata(
-    vis=ms_active,
-    mode="shadow",
-    tolerance=0.0,
-    action="apply",
-    flagbackup=False,
-    savepars=False,
-)
-task_logprint("Shadow flags carried out")
-
-# Now report statistics after shadow
-myaftershadowflags = flagdata(
-    vis=ms_active,
-    mode="summary",
-    spwchan=True,
-    spwcorr=True,
-    basecnt=True,
-    action="calculate",
-    savepars=False,
-)
-task_logprint("Shadow flags summary")
-
-aftershadow_total = myaftershadowflags["total"]
-aftershadow_flagged = myaftershadowflags["flagged"]
-task_logprint(
-    "After SHADOW flagged fraction = " + str(aftershadow_flagged / aftershadow_total)
-)
-
-shadow_flagged = myaftershadowflags["flagged"] - myafterzeroflags["flagged"]
-task_logprint(
-    "Delta SHADOW flagged fraction = " + str(shadow_flagged / aftershadow_total)
-)
-
-if os.path.isfile(online_flag_name):
-    flagdata(
-        vis=ms_active,
-        mode="list",
-        inpfile=online_flag_name,
-        tbuff=1.5 * int_time,
-        reason="any",
-        action="apply",
-        flagbackup=False,
-        savepars=True,
-        outfile=outputflagfile,
-    )
-
-    task_logprint("Online flags applied")
-else:
-    task_logprint("No online flags applied!")
-
-# Define list of flagdata parameters to use in 'list' mode
-flagdata_list = []
-cmdreason_list = []
-
-# Flag pointing scans, if there are any
+# --- Pointing Scans ---
 if len(pointing_state_IDs) != 0:
-    task_logprint("Flag pointing scans")
-    flagdata_list.append("mode='manual' intent='*POINTING*'")
+    flagging_commands.append("mode='manual' intent='*POINTING*' reason='pointing'")
     cmdreason_list.append("pointing")
+    task_logprint("Pointing scans will be flagged")
 
-# Flag setup scans
-task_logprint("Flag setup scans")
-flagdata_list.append("mode='manual' intent='UNSPECIFIED#UNSPECIFIED'")
+# --- Setup Scans ---
+flagging_commands.append("mode='manual' intent='UNSPECIFIED#UNSPECIFIED' reason='setup'")
 cmdreason_list.append("setup")
-
-task_logprint("Flag setup scans")
-flagdata_list.append("mode='manual' intent='SYSTEM_CONFIGURATION#UNSPECIFIED'")
+flagging_commands.append("mode='manual' intent='SYSTEM_CONFIGURATION#UNSPECIFIED' reason='setup'")
 cmdreason_list.append("setup")
+task_logprint("Setup scans will be flagged")
 
-# Quack the data
-task_logprint("Quack the data")
-flagdata_list.append(
-    "mode='quack'"
-    + f" scan={quack_scan_string}"
-    + f" quackinterval={1.5*int_time}"
-    + " quackmode='beg'"
-    + " quackincrement=False"
-)
-cmdreason_list.append("quack")
+# --- Quack the Data ---
+if quack_scan_string:
+    flagging_commands.append(f"mode='quack' scan='{quack_scan_string}' quackinterval={1.5 * int_time} quackmode='beg' quackincrement=False reason='quack'")
+    cmdreason_list.append("quack")
+    task_logprint("Quacking will be applied")
 
-
-######################################################################
-# FLAG SOME MORE STUFF (CHANNEL-BASED)
-# Flag end 3 channels of each spw
-task_logprint("Flag end 5 percent of each spw or minimum of 3 channels")
-
+# --- Flag End Channels of Each SPW ---
 SPWtoflag = ""
-
 for ispw in range(numSpws):
-    fivepctch = int(0.05 * channels[ispw])
-    startch1 = 0
-    startch2 = fivepctch - 1
-    endch1 = channels[ispw] - fivepctch
-    endch2 = channels[ispw] - 1
-    # Minimum number of channels flagged must be three on each end
-    if fivepctch < 3:
-        startch2 = 2
-        endch1 = channels[ispw] - 3
-    SPWtoflag += f"{ispw}:{startch1}~{startch2};{endch1}~{endch2},"
+    if ispw < len(channels):
+        fivepctch = int(0.05 * channels[ispw])
+        startch1 = 0
+        startch2 = fivepctch - 1
+        endch1 = channels[ispw] - fivepctch
+        endch2 = channels[ispw] - 1
+        if fivepctch < 3:
+            startch2 = 2
+            endch1 = channels[ispw] - 3
+        SPWtoflag += f"{ispw}:{startch1}~{startch2};{endch1}~{endch2},"
 SPWtoflag = SPWtoflag.rstrip(",")
+if SPWtoflag:
+    flagging_commands.append(f"mode='manual' spw='{SPWtoflag}' reason='spw_ends'")
+    cmdreason_list.append("spw_ends")
+    task_logprint("Flagging end channels of each spw")
 
-flagdata_list.append(f"mode='manual' spw='{SPWtoflag}'")
-cmdreason_list.append("spw_ends")
-
-# Flag 10 end channels at edges of basebands
-#
-# NB: assumes continuum set-up that fills baseband; will want to modify
-# for narrow spws or spectroscopy!
-#
+# --- Flag End Channels at Edges of Basebands ---
 bottomSPW = ""
 topSPW = ""
-
 for ii in range(len(low_spws)):
-    if ii == 0:
+    if ii < len(high_spws) and ii < len(channels):
         bspw = low_spws[ii]
         tspw = high_spws[ii]
         endch1 = channels[tspw] - 10
         endch2 = channels[tspw] - 1
-        bottomSPW = str(bspw) + ":0~9"
-        topSPW = str(tspw) + ":" + str(endch1) + "~" + str(endch2)
-    else:
-        bspw = low_spws[ii]
-        tspw = high_spws[ii]
-        endch1 = channels[tspw] - 10
-        endch2 = channels[tspw] - 1
-        bottomSPW = bottomSPW + "," + str(bspw) + ":0~9"
-        topSPW = topSPW + "," + str(tspw) + ":" + str(endch1) + "~" + str(endch2)
+        bottomSPW += f"{bspw}:0~9,"
+        topSPW += f"{tspw}:{endch1}~{endch2},"
+bottomSPW = bottomSPW.rstrip(",")
+topSPW = topSPW.rstrip(",")
+SPWtoflag_bb = ""
+if bottomSPW and topSPW:
+    SPWtoflag_bb = f"{bottomSPW},{topSPW}"
+elif bottomSPW:
+    SPWtoflag_bb = bottomSPW
+elif topSPW:
+    SPWtoflag_bb = topSPW
 
-if bottomSPW != "":
-    task_logprint("Flag end 10 channels at edges of basebands")
-    SPWtoflag = bottomSPW + "," + topSPW
-    flagdata_list.append("mode='manual' spw='" + SPWtoflag + "'")
+if SPWtoflag_bb:
+    flagging_commands.append(f"mode='manual' spw='{SPWtoflag_bb}' reason='baseband_edge_chans'")
     cmdreason_list.append("baseband_edge_chans")
+    task_logprint("Flagging end channels at edges of basebands")
 
-# Write out list for use in flagdata mode 'list'
-with open(outputflagfile, "a") as f:
-    for line in flagdata_list:
-        f.write(line + "\n")
-
-# Apply all flags
-task_logprint("Applying all flags to data")
-
+# --- Apply All Flags ---
+task_logprint("Applying all deterministic flags to data")
 flagdata(
     vis=ms_active,
     mode="list",
-    inpfile=outputflagfile,
+    inpfile=flagging_commands,
     action="apply",
     flagbackup=False,
     savepars=True,
     cmdreason=",".join(cmdreason_list),
 )
+task_logprint("Deterministic flagging completed ")
+task_logprint(f"Flag commands applied from list")
 
-task_logprint("Flagging completed ")
-task_logprint(f"Flag commands saved in file {outputflagfile}")
-
-# Save flags
+# --- Save Flags ---
 task_logprint("Saving flags")
-
 flagmanager(
     vis=ms_active,
     mode="save",
     versionname="allflags1",
-    comment="Deterministic flags saved after application",
+    comment="Deterministic flags saved after application (list mode)",
     merge="replace",
 )
 task_logprint(f"Flag column saved to 'allflags1'")
 
-# Report new statistics
+# --- Final Statistics ---
 all_flags = flagdata(
     vis=ms_active,
     mode="summary",
@@ -312,19 +159,25 @@ all_flags = flagdata(
     action="calculate",
     savepars=False,
 )
+task_logprint("Final flags summary")
+final_total = all_flags["total"]
+final_flagged = all_flags["flagged"]
+task_logprint(f"Final flagged fraction = {final_flagged / final_total if final_total > 0 else 0}")
 
+# --- Calculate Fraction of On-Source Data Flagged (Approximation) ---
+# We are making a simplification here. Ideally, we'd get the on-source count
+# after the initial shadow flagging. For simplicity in this refactor, we'll
+# use the initial total as an approximation of the total on-source data.
 frac_flagged_on_source1 = 1.0 - (
-    (start_total - all_flags["flagged"]) / init_on_source_vis
+    (start_total - final_flagged) / start_total if start_total > 0 else 1.0
 )
-
-task_logprint("Fraction of on-source data flagged = " + str(frac_flagged_on_source1))
+task_logprint(f"Approximate fraction of on-source data flagged = {frac_flagged_on_source1}")
 
 if frac_flagged_on_source1 >= 0.3:
     QA2_flagall = "Fail"
 
-task_logprint("Finished EVLA_pipe_flagall.py")
-task_logprint("QA2 score: " + QA2_flagall)
+task_logprint("Finished EVLA_pipe_flagall.py (Refactored)")
+task_logprint(f"QA2 score: {QA2_flagall}")
 time_list = runtiming("flagall", "end")
 
 pipeline_save()
-

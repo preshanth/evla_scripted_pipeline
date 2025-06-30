@@ -27,30 +27,29 @@
 #
 ######################################################################
 
+"""
+EVLA Scripted Pipeline
+
+A Python package for automated calibration of VLA continuum data.
+"""
+
 import os
 import shelve
 import warnings
 from pathlib import Path
 
-from casatasks import version
-
-
 __version__ = (2, 0, 0)
 __version_str__ = ".".join(str(i) for i in __version__)
-print(f":: EVLA scripted pipeline v{__version_str__} tested on CASA 6.1.0-118.")
+__author__ = "National Radio Astronomy Observatory"
+__email__ = "help@nrao.edu"
+__description__ = "Automated calibration pipeline for VLA data"
 
-casa_version = tuple(version())
-assert len(casa_version) == 4
-if casa_version[0] != 6:
-    raise RuntimeError("This scripted pipeline is built for use with CASA 6.")
-if casa_version[:-1] > (6, 1, 0):
-    warnings.warn("The scripted pipeline has only been tested up to CASA v6.1.0.")
-
-
+# Package path
 PIPE_PATH = Path(__file__).parent
 
-
+# Utility functions for pipeline state management
 def pipeline_save(filen="pipeline_shelf.restore"):
+    """Save pipeline state to a shelf file."""
     with shelve.open(filen, "c") as shelf:
         with open(PIPE_PATH / "EVLA_pipe_restore.list") as f:
             lines = f.read().split("\n")
@@ -64,6 +63,7 @@ def pipeline_save(filen="pipeline_shelf.restore"):
 
 
 def pipeline_restore(filen="pipeline_shelf.restore"):
+    """Restore pipeline state from a shelf file."""
     if not os.path.exists(filen):
         raise ValueError(f"Restore point does not exist: {filen}")
     else:
@@ -72,6 +72,7 @@ def pipeline_restore(filen="pipeline_shelf.restore"):
 
 
 def execfile(filepath, global_vars=None):
+    """Execute a Python file with given global variables."""
     if global_vars is None:
         global_vars = {}
     global_vars.update({
@@ -84,105 +85,66 @@ def execfile(filepath, global_vars=None):
 
 
 def exec_script(name, context):
+    """Execute a pipeline script with given context."""
     script_path = str(PIPE_PATH / f"{name}.py")
     execfile(script_path, global_vars=context)
 
 
-def run_pipeline(context=None):
-    if context is None:
-        context = globals()
-    try:
-        # The following script includes all the definitions and functions and
-        # prior inputs needed by a run of the pipeline.
-        exec_script("EVLA_pipe_startup", context)
+# Import main pipeline functions
+try:
+    from .pipeline import continuum, check_casa_version
+    from .polarization import PolarizationCalibrator, PolConfig, PolCalibrator
+    from .polarization import find_pol_calibrators, calibrate_polarization_full
+except ImportError:
+    # Fallback if pipeline module doesn't exist yet
+    def continuum(*args, **kwargs):
+        raise NotImplementedError("Pipeline module not yet implemented")
+    
+    def check_casa_version():
+        try:
+            from casatasks import version
+            casa_version = tuple(version())
+            assert len(casa_version) == 4
+            if casa_version[0] != 6:
+                raise RuntimeError("This scripted pipeline is built for use with CASA 6.")
+            if casa_version[:-1] < (6, 1, 0):
+                raise RuntimeError("This scripted pipeline requires CASA v6.1.0 or later.")
+            return casa_version
+        except ImportError:
+            warnings.warn("CASA not available - version check skipped")
+            return None
+    
+    class PolarizationCalibrator:
+        def __init__(self, *args, **kwargs):
+            raise NotImplementedError("Polarization module not yet implemented")
+    
+    class PolConfig:
+        def __init__(self, *args, **kwargs):
+            raise NotImplementedError("Polarization module not yet implemented")
+            
+    class PolCalibrator:
+        def __init__(self, *args, **kwargs):
+            raise NotImplementedError("Polarization module not yet implemented")
+    
+    def find_pol_calibrators(*args, **kwargs):
+        raise NotImplementedError("Polarization module not yet implemented")
+        
+    def calibrate_polarization_full(*args, **kwargs):
+        raise NotImplementedError("Polarization module not yet implemented")
 
-        # Import the data to CASA.
-        exec_script("EVLA_pipe_import", context)
-
-        # Hanning smooth.
-        # NOTE: This step is optional and likely unwanted for spectral line
-        # projects, but Hanning may be important if there is strong, narrowband RFI.
-        exec_script("EVLA_pipe_hanning", context)
-
-        # Get information from the MS that will be needed later, list the data, and
-        # write generic diagnostic plots.
-        exec_script("EVLA_pipe_msinfo", context)
-
-        # Deterministic flagging: (1) time-based for online flags, shadowed data,
-        # zeroes, pointing scans, quacking, and (2) channel-based for end 5% of
-        # channels of each SpW, 10 end channels at edges of basebands.
-        exec_script("EVLA_pipe_flagall", context)
-
-        # Prepare for calibrations. Fill model columns for primary calibrators.
-        exec_script("EVLA_pipe_calprep", context)
-
-        # Apply "prior" calibrations (gain curves, opacities, antenna position
-        # corrections, and requantizer gains). Plot switched power tables,
-        # although not currently used in calibration.
-        exec_script("EVLA_pipe_priorcals", context)
-
-        # Initial test calibrations using bandpass and delay calibrators.
-        exec_script("EVLA_pipe_testBPdcals", context)
-
-        # Identify and flag basebands with bad deformatters or RFI based on
-        # the bandpass table amplitudes and phases.
-        exec_script("EVLA_pipe_flag_baddeformatters", context)
-
-        # Flag possible RFI on the bandpass calibrator using `rflag`.
-        exec_script("EVLA_pipe_checkflag", context)
-
-        # Do semi-final delay and bandpass calibrations. This step is "semi-final"
-        # because we have not yet determined the spectral index of the bandpass
-        # calibrator.
-        exec_script("EVLA_pipe_semiFinalBPdcals1", context)
-
-        # Use flagdata again on calibrators
-        exec_script("EVLA_pipe_checkflag_semiFinal", context)
-
-        # Re-run semiFinalBPdcals following flagging with `rflag` above.
-        exec_script("EVLA_pipe_semiFinalBPdcals1", context)
-
-        # Determine solution interval (solint) for scan-average equivalent.
-        exec_script("EVLA_pipe_solint", context)
-
-        # Do test gain calibrations to establish short solution interval.
-        exec_script("EVLA_pipe_testgains", context)
-
-        # Make gain table for flux density bootstrapping. Create gain table with
-        # gain and opacity corrections for final amplitude calibration for flux
-        # density bootstrapping.
-        exec_script("EVLA_pipe_fluxgains", context)
-
-        # Flag gain table prior to flux density bootstrapping.
-        # NOTE: Break here to flag the gain table interatively, if desired; this
-        # step is not included in real-time pipeline otherwise.
-        #exec_script("EVLA_pipe_fluxflag", context)
-
-        # Perform the flux density bootstrapping. This fits spectral index of
-        # calibrators with a power-law and writes values into the model column.
-        exec_script("EVLA_pipe_fluxboot", context)
-
-        # Make final calibration tables.
-        exec_script("EVLA_pipe_finalcals", context)
-
-        # Apply all calibrations and check calibrated data.
-        exec_script("EVLA_pipe_applycals", context)
-
-        # Now run all calibrated data (including target) through `rflag`.
-        exec_script("EVLA_pipe_targetflag", context)
-
-        # Calculate data weights based on standard deviation within each SpW.
-        exec_script("EVLA_pipe_statwt", context)
-
-        # Make final uv plots.
-        exec_script("EVLA_pipe_plotsummary", context)
-
-        # Collect relevant plots and tables.
-        exec_script("EVLA_pipe_filecollect", context)
-
-        # Write weblog.
-        exec_script("EVLA_pipe_weblog", context)
-    except KeyboardInterrupt as e:
-        logprint(f"Keyboard Interrupt: {e}")
-    return context
-
+__all__ = [
+    "continuum",
+    "check_casa_version", 
+    "pipeline_save",
+    "pipeline_restore",
+    "execfile",
+    "exec_script",
+    "PolarizationCalibrator",
+    "PolConfig", 
+    "PolCalibrator",
+    "find_pol_calibrators",
+    "calibrate_polarization_full",
+    "__version__",
+    "__version_str__",
+    "PIPE_PATH"
+]
