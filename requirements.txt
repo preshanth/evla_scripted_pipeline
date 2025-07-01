@@ -1,5 +1,5 @@
 numpy >= 1.11.1
 scipy >= 0.18.1
-castasks
-casatools
-casaplotms
+castasks >= 6.1
+casatools >= 6.1
+casaplotms >= 6.1

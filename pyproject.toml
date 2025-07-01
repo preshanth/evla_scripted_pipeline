@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "evla_pipeline"
+version = "2.0.0"
+description = "Automated calibration pipeline for VLA data"
+readme = "README.md"
+authors = [
+    {name = "National Radio Astronomy Observatory", email = "help@nrao.edu"}
+]
+license = {text = "GPL-2.0-or-later"}
+requires-python = ">=3.7"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "numpy >= 1.11.1",
+    "scipy >= 0.18.1",
+    "casatasks",
+    "casatools",
+    "casaplotms",
+]
+dynamic = ["readme"]
+
+[project.urls]
+Homepage = "https://github.com/your-org/evla-scripted-pipeline"
+Repository = "https://github.com/your-org/evla-scripted-pipeline"
+"Bug Tracker" = "https://github.com/your-org/evla-scripted-pipeline/issues"
+
+[project.scripts]
+evla-pipeline = "evla_pipe.run_pipeline:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["evla_pipe*"]
+
+[tool.setuptools.package-data]
+evla_pipe = ["*.py", "*.list"]
