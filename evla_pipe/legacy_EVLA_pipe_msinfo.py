@@ -3,9 +3,8 @@ import numpy as np
 import warnings
 from casatasks import (listobs, plotweather, flagcmd, plotants)
 from casatools import msmetadata
-from casaplotms import plotms
-from . import pipeline_save
-from .utils import (
+from evla_pipe.plotting import plotms
+from evla_pipe.utils import (
     uniq, runtiming, logprint, find_EVLA_band, spwsforfield, find_3C84,
     buildscans,
 )
@@ -474,7 +473,26 @@ def get_ms_info(pipeline_context):
 
     pipeline_context["QA2_msinfo"] = QA2_msinfo
     task_logprint(f"Finished get_ms_info (msmetadata refactored)")
-    task_logprint(f"QA2 score: {QA2_msinfo}")
+        # Import colored output function
+    from evla_pipe.utils import format_qa_status
+    task_logprint(f"QA2 score: {format_qa_status(QA2_msinfo)}")
     time_list = runtiming("msinfo", "end")
 
     return pipeline_context
+
+
+def EVLA_pipe_msinfo(pipeline_context):
+    """
+    Main entry point for msinfo pipeline step.
+    
+    Parameters
+    ----------
+    pipeline_context : dict
+        Pipeline context dictionary containing configuration and state
+        
+    Returns
+    -------
+    dict
+        Updated pipeline context
+    """
+    return get_ms_info(pipeline_context)

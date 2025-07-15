@@ -135,7 +135,7 @@ def test_fluxboot():
             assert np.isclose(test_val, ref_val)
 
 
-class test_all_plots_made():
+def test_all_plots_made():
     assert len(glob("weblog/BPcal_amp*.png")) == 9
     assert len(glob("weblog/BPcal_phase*.png")) == 9
     assert len(glob("weblog/BPinitialgainphase*.png")) == 9

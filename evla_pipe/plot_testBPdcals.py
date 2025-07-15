@@ -1,9 +1,9 @@
 # plot_testBPdcals.py (Separate plotting script - Continued)
 
 import os
-from casaplotms import plotms
+from evla_pipe.plotting import plotms
 from casatools import table
-from .utils import runtiming, logprint
+from evla_pipe.utils import runtiming, logprint
 import numpy as np
 
 def task_logprint(msg):

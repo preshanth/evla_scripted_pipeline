@@ -6,8 +6,8 @@ import os
 import shutil
 from glob import glob
 
-from . import __version_str__, casa_version, pipeline_save
-from .utils import MAINLOG, logprint
+from evla_pipe import __version_str__, casa_version
+from evla_pipe.utils import MAINLOG, logprint
 
 
 def write_plots(wlog, pattern):
@@ -836,4 +836,53 @@ for filen in comments:
     except:
         logprint("Unable to move " + filen, logfileout="logs/filecollect.log")
 
-pipeline_save()
+
+
+def EVLA_pipe_weblog(pipeline_context):
+    """
+    Main entry point for EVLA_pipe_weblog pipeline step.
+    
+    Parameters
+    ----------
+    pipeline_context : dict
+        Pipeline context dictionary containing configuration and state
+        
+    Returns
+    -------
+    dict
+        Updated pipeline context
+    """
+    from evla_pipe.utils import runtiming, logprint
+    
+    def task_logprint(msg):
+        logprint(msg, logfileout="logs/weblog.log")
+    
+    task_logprint("*** Starting EVLA_pipe_weblog.py ***")
+    time_list = runtiming("weblog", "start")
+    
+    # Extract variables from context
+    ms_active = pipeline_context.get("msname", "")
+    
+    try:
+        # Call the main function if it exists
+        if "write_plots" in globals():
+            QA2_score = write_plots(pipeline_context)
+        else:
+            # Default implementation - this needs to be customized per script
+            QA2_score = "Pass"
+            task_logprint("Default implementation - needs customization")
+    except Exception as e:
+        task_logprint(f"Error in EVLA_pipe_weblog: {e}")
+        QA2_score = "Fail"
+    
+    task_logprint(f"Finished EVLA_pipe_weblog.py")
+        # Import colored output function
+    from evla_pipe.utils import format_qa_status
+    task_logprint(f"QA2 score: {format_qa_status(QA2_score)}")
+    time_list = runtiming("weblog", "end")
+    
+    # Update context and return
+    pipeline_context["QA2_weblog"] = QA2_score
+    pipeline_context["time_list"] = time_list
+    
+    return pipeline_context

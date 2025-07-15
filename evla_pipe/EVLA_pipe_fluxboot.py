@@ -6,9 +6,8 @@ import os
 import numpy as np
 import scipy as sp
 from casatasks import fluxscale, casalog, setjy, rmtables
-from casaplotms import plotms
-from . import pipeline_save
-from .utils import MAINLOG, logprint, runtiming, find_EVLA_band
+from evla_pipe.plotting import plotms
+from evla_pipe.utils import MAINLOG, logprint, runtiming, find_EVLA_band
 
 
 def task_logprint(msg):
@@ -202,21 +201,42 @@ def _plot_flux_model(pipeline_context):
     )
 
 
-task_logprint("*** Starting EVLA_pipe_fluxboot.py ***")
-time_list = runtiming("fluxboot", "start")
-QA2_fluxboot = "Pass"
+def EVLA_pipe_fluxboot(pipeline_context):
+    """
+    Perform flux density bootstrapping.
+    
+    Parameters
+    ----------
+    pipeline_context : dict
+        Pipeline context dictionary containing configuration and state
+        
+    Returns
+    -------
+    dict
+        Updated pipeline context
+    """
+    
+    task_logprint("*** Starting EVLA_pipe_fluxboot.py ***")
+    time_list = runtiming("fluxboot", "start")
+    QA2_fluxboot = "Pass"
 
-flux_field_select_string = pipeline_context.get("flux_field_select_string", "")
-center_frequencies = pipeline_context.get("center_frequencies", {})
-scratch = pipeline_context.get("usescratch", False)
+    flux_field_select_string = pipeline_context.get("flux_field_select_string", "")
+    center_frequencies = pipeline_context.get("center_frequencies", {})
+    scratch = pipeline_context.get("usescratch", False)
 
-fluxscale_result = _bootstrap_flux(pipeline_context, flux_field_select_string)
-fitting_results = _fit_power_law(fluxscale_result, center_frequencies)
-QA2_fluxboot = _set_fitted_flux(pipeline_context, fitting_results, scratch)
-_plot_flux_model(pipeline_context)
+    fluxscale_result = _bootstrap_flux(pipeline_context, flux_field_select_string)
+    fitting_results = _fit_power_law(fluxscale_result, center_frequencies)
+    QA2_fluxboot = _set_fitted_flux(pipeline_context, fitting_results, scratch)
+    _plot_flux_model(pipeline_context)
 
-task_logprint(f"QA2 score: {QA2_fluxboot}")
-task_logprint("Finished EVLA_pipe_fluxboot.py")
-time_list = runtiming("fluxboot", "end")
+        # Import colored output function
+    from evla_pipe.utils import format_qa_status
+    task_logprint(f"QA2 score: {format_qa_status(QA2_fluxboot)}")
+    task_logprint("Finished EVLA_pipe_fluxboot.py")
+    time_list = runtiming("fluxboot", "end")
 
-pipeline_save()
+    # Update context and return
+    pipeline_context["QA2_fluxboot"] = QA2_fluxboot
+    pipeline_context["time_list"] = time_list
+    
+    return pipeline_context

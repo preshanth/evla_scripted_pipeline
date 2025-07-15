@@ -18,18 +18,84 @@ me = measures()
 qa = quanta()
 msmd = msmetadata()
 
-from . import PIPE_PATH
-from .compat import running_within_casa
+from evla_pipe import PIPE_PATH
+from evla_pipe.compat import running_within_casa
 
 if not running_within_casa:
     from casatasks import (flagdata, casalog)
 
 
-log_dir = "logs"
-if not os.path.exists(log_dir):
-    os.makedirs(log_dir)
+# Pipeline directory structure
+LOGS_DIR = Path("logs")
+MEASUREMENT_SETS_DIR = Path("measurement_sets")
+CALTABLES_DIR = Path("final_caltables")
+INTERMEDIATE_CALTABLES_DIR = Path("intermediate_caltables")
+TEST_CALTABLES_DIR = Path("test_caltables")
+WEBLOG_DIR = Path("weblog")
+PLOTS_DIR = Path("plots")
+PIPELINE_CONTEXT_DIR = Path("pipeline_context")
+
+# Ensure critical directories exist
+LOGS_DIR.mkdir(exist_ok=True)
+MEASUREMENT_SETS_DIR.mkdir(exist_ok=True)
+CALTABLES_DIR.mkdir(exist_ok=True)
+INTERMEDIATE_CALTABLES_DIR.mkdir(exist_ok=True)
+TEST_CALTABLES_DIR.mkdir(exist_ok=True)
+WEBLOG_DIR.mkdir(exist_ok=True)
+PLOTS_DIR.mkdir(exist_ok=True)
+PIPELINE_CONTEXT_DIR.mkdir(exist_ok=True)
 
 MAINLOG = casalog.logfile()
+
+
+def format_qa_status(qa_status):
+    """
+    Format QA status with colored output and checkmarks.
+    
+    Parameters
+    ----------
+    qa_status : str
+        Status string ('Pass', 'Fail', etc.)
+        
+    Returns
+    -------
+    str
+        Formatted status string with colors and symbols
+    """
+    if qa_status == "Pass":
+        return "\033[92m✓ Pass\033[0m"  # Green checkmark
+    elif qa_status == "Fail":
+        return "\033[91m✗ Fail\033[0m"  # Red X
+    else:
+        return f"\033[93m⚠ {qa_status}\033[0m"  # Yellow warning
+
+
+def get_caltable_path(table_name, table_type="final"):
+    """
+    Get the full path for a calibration table in the appropriate directory.
+    
+    Parameters
+    ----------
+    table_name : str
+        Name of the calibration table
+    table_type : str
+        Type of calibration table: "final", "intermediate", "test", or "prior"
+        
+    Returns
+    -------
+    str
+        Full path to the calibration table
+    """
+    if table_type == "final":
+        return str(CALTABLES_DIR / table_name)
+    elif table_type == "intermediate":
+        return str(INTERMEDIATE_CALTABLES_DIR / table_name)
+    elif table_type == "test":
+        return str(TEST_CALTABLES_DIR / table_name)
+    elif table_type == "prior":
+        return str(INTERMEDIATE_CALTABLES_DIR / table_name)  # Prior cals go with intermediate
+    else:
+        return table_name  # Default to current directory
 
 
 def logprint(msg, logfileout=None):
@@ -70,6 +136,83 @@ class RunTimer:
         return times
 
 runtiming = RunTimer()
+
+
+# Pathlib helper functions for pipeline
+def get_log_path(log_name: str) -> Path:
+    """Get path to log file in logs directory."""
+    return LOGS_DIR / log_name
+
+
+
+
+def get_weblog_path(filename: str) -> Path:
+    """Get path to file in weblog directory."""
+    return WEBLOG_DIR / filename
+
+
+def get_plot_path(filename: str) -> Path:
+    """Get path to file in plots directory."""
+    return PLOTS_DIR / filename
+
+
+def get_measurement_set_path(ms_name: str) -> Path:
+    """Get path to measurement set in measurement_sets directory."""
+    return MEASUREMENT_SETS_DIR / ms_name
+
+
+def cleanup_import_files(SDM_name: str, working_dir: Path = None) -> None:
+    """Clean up files that may interfere with importasdm."""
+    if working_dir is None:
+        working_dir = Path.cwd()
+    
+    # Files that can cause importasdm to fail if they exist
+    files_to_remove = [
+        "onlineFlags.txt",
+        f"{SDM_name}.flagversions",
+        f"{SDM_name}.ms.flagversions"
+    ]
+    
+    for file_path in files_to_remove:
+        full_path = working_dir / file_path
+        if full_path.exists():
+            try:
+                if full_path.is_file():
+                    full_path.unlink()
+                elif full_path.is_dir():
+                    import shutil
+                    shutil.rmtree(full_path)
+                logprint(f"Cleaned up: {full_path}")
+            except Exception as e:
+                logprint(f"Warning: Could not remove {full_path}: {e}")
+
+
+def should_plot(pipeline_context: dict) -> bool:
+    """Check if plotting is enabled in pipeline context."""
+    return pipeline_context.get("enable_plots", True)
+
+
+def get_plot_output_path(filename: str, pipeline_context: dict) -> str:
+    """Get plot output path, returns empty string if plotting disabled."""
+    if not should_plot(pipeline_context):
+        return ""
+    return str(get_plot_path(filename))
+
+
+def ensure_dir_exists(path: Path) -> Path:
+    """Ensure directory exists, create if necessary."""
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def path_exists(path) -> bool:
+    """Check if path exists (accepts string or Path)."""
+    return Path(path).exists()
+
+
+def join_paths(*args) -> str:
+    """Join paths and return as string for CASA compatibility."""
+    return str(Path(*args))
 
 
 def uniq(inlist):

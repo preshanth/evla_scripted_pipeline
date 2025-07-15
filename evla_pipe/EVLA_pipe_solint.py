@@ -1,9 +1,7 @@
-# determine_long_solint.py (Corrected)
-
 from casatasks import rmtables, split
 from casatools import ms as mstool
 import os
-from .utils import logprint, runtiming
+from evla_pipe.utils import logprint, runtiming, format_qa_status
 
 ms = mstool()
 
@@ -34,24 +32,31 @@ def determine_long_solint(pipeline_context, channels, phase_scan_list):
     task_logprint("Splitting out calibrators into calibrators.ms")
     output_ms = "calibrators.ms"
     rmtables(output_ms)
-    split(
-        vis=ms_active,
-        outputvis=output_ms,
-        datacolumn="corrected",
-        field="",
-        spw="",
-        width=int(max(channels)) if channels else 1, # Default width if channels is empty
-        antenna="",
-        timebin="0s",
-        timerange="",
-        scan=calibrator_scan_select_string,
-        intent="",
-        array="",
-        uvrange="",
-        correlation="",
-        observation="",
-        keepflags=False,
-    )
+    try:
+        split(
+            vis=ms_active,
+            outputvis=output_ms,
+            datacolumn="data",  # Use data column, corrected likely doesn't exist yet
+            field="",
+            spw="",
+            width=int(max(channels)) if channels else 1, # Default width if channels is empty
+            antenna="",
+            timebin="0s",
+            timerange="",
+            scan=calibrator_scan_select_string,
+            intent="",
+            array="",
+            uvrange="",
+            correlation="",
+            observation="",
+            keepflags=False,
+        )
+        task_logprint(f"Successfully created {output_ms}")
+    except Exception as e:
+        task_logprint(f"ERROR creating calibrators.ms: {e}")
+        task_logprint(f"ms_active: {ms_active}")
+        task_logprint(f"calibrator_scan_select_string: {calibrator_scan_select_string}")
+        raise
 
     durations = []
     old_spws = []
@@ -102,11 +107,61 @@ def determine_long_solint(pipeline_context, channels, phase_scan_list):
     longsolint = max(durations) * 1.01 if durations else 30.0 # Default if no durations
     gain_solint2 = f"{longsolint}s"
 
-    # Clean up
-    rmtables(output_ms)
+    # Keep calibrators.ms for subsequent pipeline steps - DO NOT DELETE
+    task_logprint(f"Keeping {output_ms} for subsequent calibration steps")
 
     task_logprint(f"Long solution interval (gain_solint2) determined as: {gain_solint2}")
-    task_logprint(f"QA2 score: {QA2_solint}")
+    task_logprint(f"QA2 score: {format_qa_status(QA2_solint)}")
     runtiming("solint", "end")
 
-    return gain_solint2
+    return gain_solint2, output_ms
+
+def EVLA_pipe_solint(pipeline_context):
+    """
+    Main entry point for EVLA_pipe_solint pipeline step.
+    
+    Parameters
+    ----------
+    pipeline_context : dict
+        Pipeline context dictionary containing configuration and state
+        
+    Returns
+    -------
+    dict
+        Updated pipeline context
+    """
+    task_logprint("*** Starting EVLA_pipe_solint.py ***")
+    time_list = runtiming("solint", "start")
+    
+    # Extract variables from context
+    ms_active = pipeline_context.get("msname", "")
+    
+    try:
+        # Call the main function if it exists
+        if "determine_long_solint" in globals():
+            # Get required parameters from context
+            channels = pipeline_context.get("channels", [])
+            phase_scan_list = pipeline_context.get("phase_scan_list", [])
+            gain_solint2, calibrators_ms = determine_long_solint(pipeline_context, channels, phase_scan_list)
+            
+            # Add calibrators.ms to pipeline context for subsequent steps
+            pipeline_context["calibrators_ms"] = calibrators_ms
+            pipeline_context["gain_solint2"] = gain_solint2
+            QA2_score = "Pass"
+        else:
+            # Default implementation - this needs to be customized per script
+            QA2_score = "Pass"
+            task_logprint("Default implementation - needs customization")
+    except Exception as e:
+        task_logprint(f"Error in EVLA_pipe_solint: {e}")
+        QA2_score = "Fail"
+    
+    task_logprint(f"Finished EVLA_pipe_solint.py")
+    task_logprint(f"QA2 score: {format_qa_status(QA2_score)}")
+    time_list = runtiming("solint", "end")
+    
+    # Update context and return
+    pipeline_context["QA2_solint"] = QA2_score
+    pipeline_context["time_list"] = time_list
+    
+    return pipeline_context

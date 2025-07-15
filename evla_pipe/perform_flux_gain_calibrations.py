@@ -1,7 +1,7 @@
 # perform_flux_gain_calibrations.py
 
 from casatasks import gaincal
-from .utils import (
+from evla_pipe.utils import (
         runtiming,
         logprint,
         RefAntHeuristics,

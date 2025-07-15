@@ -13,8 +13,7 @@ import scipy as sp
 import math
 
 from casatasks import gaincal, applycal
-from . import pipeline_save
-from .utils import runtiming, logprint, find_standards, find_EVLA_band, RefAntHeuristics
+from evla_pipe.utils import runtiming, logprint, find_standards, find_EVLA_band, RefAntHeuristics
 
 pi = np.pi
 

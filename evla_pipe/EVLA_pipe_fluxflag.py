@@ -5,10 +5,9 @@ Note: Because this is not part of the regular pipeline script, we do not
       perform runtiming, otherwise `EVLA_pipe_restart.py` doesn't work.
 """
 
-from casaplotms import plotms
+from evla_pipe.plotting import plotms
 
-from . import pipeline_save
-from .utils import runtiming
+from evla_pipe.utils import runtiming
 
 logprint("*** Starting EVLA_pipe_fluxflag.py ***", logfileout='logs/fluxflag.log')
 
@@ -24,4 +23,3 @@ plotms(
 
 logprint("Finished EVLA_pipe_fluxflag.py", logfileout='logs/fluxflag.log')
 
-pipeline_save()

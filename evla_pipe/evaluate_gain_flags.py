@@ -2,7 +2,7 @@
 
 from casatasks import rmtables
 from casatools import table
-from .utils import (logprint, runtiming, getCalFlaggedSoln)
+from evla_pipe.utils import (logprint, runtiming, getCalFlaggedSoln)
 
 tb = table()
 

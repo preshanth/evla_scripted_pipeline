@@ -15,9 +15,10 @@ import numpy as np
 from dataclasses import dataclass
 from typing import List, Dict, Tuple, Optional
 from pathlib import Path
+import os
 
 from casatasks import setjy
-from .utils import logprint, find_EVLA_band
+from evla_pipe.utils import logprint, find_EVLA_band
 
 
 @dataclass 
@@ -31,73 +32,261 @@ class PolCalData:
     intrinsic_angle: float  # degrees
 
 
-# Perley-Butler 2013 polarization data
-# Table 3: Polarization Properties of 3C48, 3C138, 3C147, and 3C286
-POL_CAL_DATABASE = {
-    '3C48': PolCalData(
-        source_name='3C48',
-        frequencies=np.array([1.050, 1.450, 1.640, 1.950, 2.450, 2.950, 3.250, 3.750,
-                             4.500, 5.000, 6.500, 7.250, 8.100, 8.800, 12.80, 13.70,
-                             14.60, 15.50, 18.10, 19.00, 22.40, 23.30, 36.50, 43.50]),
-        pol_fraction=np.array([0.3, 0.5, 0.7, 0.9, 1.4, 2.0, 2.5, 3.2, 3.8, 4.2,
-                              5.2, 5.2, 5.3, 5.4, 6.0, 6.1, 6.4, 6.4, 6.9, 7.1,
-                              7.7, 7.8, 7.4, 7.5]),
-        pol_angle=np.array([120, 120, 120, 120, 120, 120, 120, 120, 120, 120,
-                           120, 120, 120, 120, 120, 120, 120, 120, 120, 120,
-                           120, 120, 120, 120]),  # Approximate values
-        rotation_measure=-68.0,  # rad/m^2
-        intrinsic_angle=122.0  # degrees
-    ),
+def load_polcal_data_from_file(source_name: str, data_dir: str = None) -> PolCalData:
+    """
+    Load polarization calibrator data from 2019 data files.
     
-    '3C138': PolCalData(
-        source_name='3C138', 
-        frequencies=np.array([1.050, 1.450, 1.640, 1.950, 2.450, 2.950, 3.250,
-                             4.500, 5.000, 6.500, 7.250, 8.100, 8.800, 12.80,
-                             13.70, 14.60, 15.50, 18.10, 19.00, 22.40, 23.30,
-                             36.50, 43.50]),  # Skip 3.750 GHz (null value)
-        pol_fraction=np.array([5.6, 7.5, 8.4, 9.0, 10.4, 10.7, 10.0, 10.0, 10.4,
-                              9.8, 10.0, 10.4, 10.1, 8.4, 7.9, 7.7, 7.4, 6.7,
-                              6.5, 6.7, 6.6, 6.6, 6.5]),
-        pol_angle=np.array([-10, -10, -10, -10, -10, -10, -10, -10, -10, -10,
-                           -10, -10, -10, -10, -10, -10, -10, -10, -10, -10,
-                           -10, -10, -10]),  # Approximate values
-        rotation_measure=0.0,
-        intrinsic_angle=-10.0
-    ),
+    Parameters
+    ----------
+    source_name : str
+        Source name (e.g., '3C286', '3C48', etc.)
+    data_dir : str, optional
+        Directory containing the data files. If None, uses default data directory.
+        
+    Returns
+    -------
+    PolCalData
+        Loaded calibrator data
+    """
+    if data_dir is None:
+        # Get the directory where this module is located
+        module_dir = Path(__file__).parent
+        data_dir = module_dir.parent / 'data'
+    else:
+        data_dir = Path(data_dir)
     
-    '3C147': PolCalData(
-        source_name='3C147',
-        frequencies=np.array([4.500, 5.000, 6.500, 7.250, 8.100, 8.800, 12.80,
-                             13.70, 14.60, 15.50, 18.10, 19.00, 22.40, 23.30,
-                             36.50, 43.50]),  # Only C-band and higher
-        pol_fraction=np.array([0.1, 0.3, 0.3, 0.6, 0.7, 0.8, 2.2, 2.4, 2.7,
-                              2.9, 3.4, 3.5, 3.8, 3.8, 4.4, 5.2]),
-        pol_angle=np.array([135, 135, 135, 135, 135, 135, 135, 135, 135, 135,
-                           135, 135, 135, 135, 135, 135]),  # Approximate values
-        rotation_measure=0.0,
-        intrinsic_angle=135.0
-    ),
+    # Map source names to filenames
+    source_files = {
+        '3C48': '3C48_2019.txt',
+        '3C138': '3C138_2019.txt', 
+        '3C147': '3C147_2019.txt',
+        '3C286': '3C286_2019.txt',
+        '3C196': '3C196_2019.txt',
+        '3C295': '3C295_2019.txt'
+    }
     
-    '3C286': PolCalData(
-        source_name='3C286',
-        frequencies=np.array([1.050, 1.450, 1.640, 1.950, 2.450, 2.950, 3.250, 3.750,
-                             4.500, 5.000, 6.500, 7.250, 8.100, 8.800, 12.80, 13.70,
-                             14.60, 15.50, 18.10, 19.00, 22.40, 23.30, 36.50, 43.50]),
-        pol_fraction=np.array([8.6, 9.5, 9.9, 10.1, 10.5, 10.8, 10.9, 11.1, 11.3,
-                              11.4, 11.6, 11.7, 11.9, 11.9, 11.9, 11.9, 12.1, 12.2,
-                              12.5, 12.5, 12.6, 12.6, 13.1, 13.2]),
-        pol_angle=np.array([66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66,
-                           66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66]),
-        rotation_measure=0.0,
-        intrinsic_angle=66.0
+    # Handle case variations
+    source_upper = source_name.upper()
+    if source_upper not in source_files:
+        raise ValueError(f"Unknown source {source_name}. Available: {list(source_files.keys())}")
+    
+    file_path = data_dir / source_files[source_upper]
+    if not file_path.exists():
+        raise FileNotFoundError(f"Data file not found: {file_path}")
+    
+    # Read the data file
+    frequencies = []
+    pol_fractions = []
+    pol_angles = []
+    
+    with open(file_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            # Skip comments and empty lines
+            if line.startswith('#') or not line:
+                continue
+            
+            parts = line.split()
+            if len(parts) >= 4:
+                try:
+                    freq = float(parts[0])
+                    intensity = float(parts[1])  # Not used but in file
+                    pol_frac = float(parts[2]) if parts[2] != 'N/A' else np.nan
+                    pol_angle = float(parts[3]) if parts[3] != 'N/A' else np.nan
+                    
+                    # Only include valid data points
+                    if not (np.isnan(pol_frac) or np.isnan(pol_angle)):
+                        frequencies.append(freq)
+                        pol_fractions.append(pol_frac * 100.0)  # Convert to percentage
+                        pol_angles.append(np.degrees(pol_angle))  # Convert to degrees
+                        
+                except ValueError:
+                    continue
+    
+    if not frequencies:
+        raise ValueError(f"No valid data found in {file_path}")
+    
+    # Create PolCalData with estimated rotation measure and intrinsic angle
+    # These values are approximate and should be refined based on literature
+    rm_values = {
+        '3C48': -68.0,
+        '3C138': 0.0,
+        '3C147': 0.0, 
+        '3C286': 0.0,
+        '3C196': 0.0,
+        '3C295': 0.0
+    }
+    
+    # Use median angle as intrinsic angle approximation
+    intrinsic_angle = np.median(pol_angles) if pol_angles else 0.0
+    
+    return PolCalData(
+        source_name=source_upper,
+        frequencies=np.array(frequencies),
+        pol_fraction=np.array(pol_fractions),
+        pol_angle=np.array(pol_angles),
+        rotation_measure=rm_values.get(source_upper, 0.0),
+        intrinsic_angle=intrinsic_angle
     )
-}
 
-# Aliases for different naming conventions
-POL_CAL_DATABASE['3c48'] = POL_CAL_DATABASE['3C48']
-POL_CAL_DATABASE['3c138'] = POL_CAL_DATABASE['3C138'] 
-POL_CAL_DATABASE['3c147'] = POL_CAL_DATABASE['3C147']
-POL_CAL_DATABASE['3c286'] = POL_CAL_DATABASE['3C286']
+
+def load_perley_butler_2013_data(source_name: str, data_dir: str = None) -> PolCalData:
+    """
+    Load polarization calibrator data from Perley-Butler 2013 table.
+    
+    Parameters
+    ----------
+    source_name : str
+        Source name (e.g., '3C286', '3C48', etc.)
+    data_dir : str, optional
+        Directory containing the data files. If None, uses default data directory.
+        
+    Returns
+    -------
+    PolCalData
+        Loaded calibrator data
+    """
+    if data_dir is None:
+        # Get the directory where this module is located
+        module_dir = Path(__file__).parent
+        data_dir = module_dir.parent / 'data'
+    else:
+        data_dir = Path(data_dir)
+    
+    file_path = data_dir / 'perley-butler-2013.txt'
+    if not file_path.exists():
+        raise FileNotFoundError(f"Perley-Butler 2013 data file not found: {file_path}")
+    
+    # Map source names to column indices in the table
+    source_columns = {
+        '3C48': (1, 2),    # pol%, angle columns
+        '3C138': (3, 4),
+        '3C147': (5, 6), 
+        '3C286': (7, 8)
+    }
+    
+    source_upper = source_name.upper()
+    if source_upper not in source_columns:
+        available = list(source_columns.keys())
+        raise ValueError(f"Source {source_name} not in Perley-Butler 2013 data. Available: {available}")
+    
+    pol_col, angle_col = source_columns[source_upper]
+    
+    # Read the data file
+    frequencies = []
+    pol_fractions = []
+    pol_angles = []
+    
+    with open(file_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            # Skip comments and header lines
+            if line.startswith('Table') or line.startswith('Polarization') or line.startswith('Frequency') or line.startswith('(GHz)') or not line:
+                continue
+            
+            parts = line.split('\t')
+            if len(parts) >= 9:  # Ensure we have all columns
+                try:
+                    freq = float(parts[0])
+                    pol_frac_str = parts[pol_col].strip()
+                    pol_angle_str = parts[angle_col].strip()
+                    
+                    # Skip entries with missing data (marked with symbols)
+                    if ('sdotsdotsdot' in pol_frac_str or '<' in pol_frac_str or 
+                        'sdotsdotsdot' in pol_angle_str or pol_frac_str == '' or pol_angle_str == ''):
+                        continue
+                    
+                    pol_frac = float(pol_frac_str)
+                    pol_angle = float(pol_angle_str)
+                    
+                    frequencies.append(freq)
+                    pol_fractions.append(pol_frac)  # Already in percentage
+                    pol_angles.append(pol_angle)    # Already in degrees
+                    
+                except (ValueError, IndexError):
+                    continue
+    
+    if not frequencies:
+        raise ValueError(f"No valid data found for {source_name} in Perley-Butler 2013 table")
+    
+    # Rotation measure values from Perley-Butler 2013
+    rm_values = {
+        '3C48': -68.0,
+        '3C138': 0.0,
+        '3C147': 0.0,
+        '3C286': 0.0
+    }
+    
+    # Use median angle as intrinsic angle approximation
+    intrinsic_angle = np.median(pol_angles) if pol_angles else 0.0
+    
+    return PolCalData(
+        source_name=source_upper,
+        frequencies=np.array(frequencies),
+        pol_fraction=np.array(pol_fractions),
+        pol_angle=np.array(pol_angles),
+        rotation_measure=rm_values.get(source_upper, 0.0),
+        intrinsic_angle=intrinsic_angle
+    )
+
+
+def get_polcal_data(source_name: str, data_dir: str = None, obs_date: str = None) -> PolCalData:
+    """
+    Get polarization calibrator data, selecting nearest in time.
+    
+    Uses 2019 data when available, falls back to Perley-Butler 2013.
+    
+    Parameters
+    ----------
+    source_name : str
+        Source name
+    data_dir : str, optional
+        Data directory path
+    obs_date : str, optional
+        Observation date in format 'YYYY-MM-DD' or 'YYYY'. If None, uses 2019 data first.
+        
+    Returns
+    -------
+    PolCalData
+        Calibrator data
+    """
+    # Determine which dataset to use based on observation date
+    use_2019_data = True
+    
+    if obs_date:
+        try:
+            # Extract year from date string
+            if '-' in obs_date:
+                obs_year = int(obs_date.split('-')[0])
+            else:
+                obs_year = int(obs_date)
+            
+            # Use nearest data in time
+            # 2019 data vs 2013 data
+            if abs(obs_year - 2019) <= abs(obs_year - 2013):
+                use_2019_data = True
+            else:
+                use_2019_data = False
+                
+        except (ValueError, IndexError):
+            logprint(f"Warning: Could not parse observation date '{obs_date}', using 2019 data")
+            use_2019_data = True
+    
+    # Try to load data, with fallback
+    if use_2019_data:
+        try:
+            return load_polcal_data_from_file(source_name, data_dir)
+        except (FileNotFoundError, ValueError) as e:
+            logprint(f"Warning: Could not load 2019 data for {source_name}: {e}")
+            logprint(f"Falling back to Perley-Butler 2013 data")
+            return load_perley_butler_2013_data(source_name, data_dir)
+    else:
+        try:
+            return load_perley_butler_2013_data(source_name, data_dir)
+        except (FileNotFoundError, ValueError) as e:
+            logprint(f"Warning: Could not load Perley-Butler 2013 data for {source_name}: {e}")
+            logprint(f"Falling back to 2019 data")
+            return load_polcal_data_from_file(source_name, data_dir)
 
 
 def get_band_frequency_range(band: str) -> Tuple[float, float]:
@@ -149,9 +338,9 @@ def filter_data_for_band(cal_data: PolCalData, band: str) -> Tuple[np.ndarray, n
     mask = (cal_data.frequencies >= min_freq) & (cal_data.frequencies <= max_freq)
     
     if not np.any(mask):
-        # No data in band, use nearest frequencies
+        # No data in band - return None to indicate no polarization data available
         logprint(f"Warning: No polarization data for {cal_data.source_name} in {band} band")
-        return cal_data.frequencies, cal_data.pol_fraction, cal_data.pol_angle
+        return None, None, None
         
     return (cal_data.frequencies[mask], 
             cal_data.pol_fraction[mask], 
@@ -189,13 +378,15 @@ def fit_polarization_polynomials(source_name: str, band: str, ref_freq_ghz: floa
     numpy.polyfit returns coefficients in descending order, so we reverse them.
     """
     # Get calibrator data
-    if source_name not in POL_CAL_DATABASE:
-        raise ValueError(f"Unknown polarization calibrator: {source_name}")
-        
-    cal_data = POL_CAL_DATABASE[source_name]
+    cal_data = get_polcal_data(source_name)
     
     # Filter data for band
     freqs, pol_fracs, pol_angles = filter_data_for_band(cal_data, band)
+    
+    # Check if no polarization data available for this band
+    if freqs is None:
+        logprint(f"No polarization data available for {source_name} in {band} band")
+        return None, None, None
     
     if len(freqs) < order + 1:
         logprint(f"Warning: Only {len(freqs)} points for {source_name} {band}-band, reducing polynomial order")
@@ -351,12 +542,14 @@ def setjy_with_polarization(vis: str, field: str, spw: str = '',
 
 def integrate_polarization_setjy(vis: str, field_id: int, field_name: str, 
                                  spws: List[int], band: str, ref_freq_hz: float,
-                                 standard_setjy_result: Dict = None) -> Dict:
+                                 obs_date: str = None, use_model_image: str = None,
+                                 standard: str = "Perley-Butler 2017", 
+                                 usescratch: bool = True) -> Dict:
     """
-    Integrate polarization setjy into main pipeline setjy calls.
+    Single integrated setjy call that sets both intensity and polarization models.
     
-    This function should be called immediately after the standard setjy
-    for polarization calibrators to add polarization information.
+    This replaces the standard setjy call entirely, providing both intensity 
+    and polarization information in one step.
     
     Parameters
     ----------
@@ -372,65 +565,100 @@ def integrate_polarization_setjy(vis: str, field_id: int, field_name: str,
         VLA band
     ref_freq_hz : float
         Reference frequency in Hz
-    standard_setjy_result : Dict, optional
-        Result from standard setjy call
+    obs_date : str, optional
+        Observation date for selecting best polarization data
+    use_model_image : str, optional
+        Model image to use for intensity
+    standard : str, optional
+        Flux density standard (default: "Perley-Butler 2017")
+    usescratch : bool, optional
+        Use scratch columns (default: True)
         
     Returns
     -------
     Dict
-        Updated setjy result with polarization
+        Complete setjy result with polarization
     """
-    # Check if this is a known polarization calibrator
-    if field_name not in POL_CAL_DATABASE:
-        logprint(f"Field {field_name} is not a standard polarization calibrator")
-        return standard_setjy_result or {}
-        
     try:
+        # Check if this is a known polarization calibrator
+        cal_data = get_polcal_data(field_name, obs_date=obs_date)
+        
         # Get polarization coefficients
         ref_freq_ghz = ref_freq_hz / 1e9
         pol_frac_coeffs, pol_angle_coeffs, pol_frac_ref = fit_polarization_polynomials(
             field_name, band, ref_freq_ghz
         )
         
-        # Get calibrator data for rotation measure
-        cal_data = POL_CAL_DATABASE[field_name]
+        # Check if polarization data is available
+        if pol_frac_coeffs is None:
+            # No polarization data available, fall back to intensity-only
+            raise ValueError(f"No polarization data available for {field_name} in {band} band")
         
-        # Extract flux density from standard setjy result if available
-        stokes_i = None
-        spectral_index = None
-        if standard_setjy_result:
-            field_key = str(field_id)
-            if field_key in standard_setjy_result:
-                spw_data = standard_setjy_result[field_key]
-                # Use first spw as reference
-                first_spw = str(spws[0]) if spws else '0'
-                if first_spw in spw_data:
-                    flux_data = spw_data[first_spw]
-                    if 'fluxd' in flux_data:
-                        stokes_i = flux_data['fluxd'][0]  # Stokes I
-                        
         # Create spw selection string
         spw_str = ','.join(map(str, spws)) if spws else ''
         
-        # Call enhanced setjy with polarization
+        logprint(f"Setting combined intensity + polarization model for {field_name}")
+        logprint(f"  Field: {field_id}, SPWs: {spw_str}, Band: {band}")
+        logprint(f"  Reference frequency: {ref_freq_ghz:.3f} GHz")
+        logprint(f"  Polarization fraction at ref: {pol_frac_ref:.4f}")
+        
+        # First set the standard intensity model
+        intensity_result = setjy(
+            vis=vis,
+            field=str(field_id),
+            spw=spw_str,
+            selectdata=False,
+            scalebychan=True,
+            standard=standard,
+            model=use_model_image if use_model_image else '',
+            listmodels=False,
+            usescratch=usescratch,
+        )
+        
+        # Then enhance with polarization using setjy_with_polarization
         pol_setjy_result = setjy_with_polarization(
             vis=vis,
             field=str(field_id),
             spw=spw_str,
             ref_freq_hz=ref_freq_hz,
-            stokes_i=stokes_i,
-            spectral_index=spectral_index,
+            stokes_i=None,  # Will be derived from the previous setjy call
+            spectral_index=None,
             pol_fraction_coeffs=pol_frac_coeffs,
             pol_angle_coeffs=pol_angle_coeffs,
-            rotation_measure=cal_data.rotation_measure
+            rotation_measure=cal_data.rotation_measure,
+            use_scratch=usescratch
         )
         
-        logprint(f"Successfully set polarization model for {field_name}")
-        return pol_setjy_result
+        logprint(f"Successfully set combined model for {field_name}")
+        
+        # Merge results (polarization result should include everything)
+        if pol_setjy_result and intensity_result:
+            # Use the polarization result as primary, add any missing intensity info
+            return pol_setjy_result
+        else:
+            return intensity_result or pol_setjy_result or {}
         
     except Exception as e:
-        logprint(f"Error setting polarization model for {field_name}: {e}")
-        return standard_setjy_result or {}
+        logprint(f"Warning: No polarization data for {field_name} in {band} band")
+        logprint(f"Falling back to intensity-only model")
+        
+        # Fallback to intensity-only setjy
+        spw_str = ','.join(map(str, spws)) if spws else ''
+        
+        intensity_result = setjy(
+            vis=vis,
+            field=str(field_id),
+            spw=spw_str,
+            selectdata=False,
+            scalebychan=True,
+            standard=standard,
+            model=use_model_image if use_model_image else '',
+            listmodels=False,
+            usescratch=usescratch,
+        )
+        
+        logprint(f"Successfully set intensity-only model for {field_name}")
+        return intensity_result
 
 
 def example_usage():

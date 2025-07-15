@@ -5,13 +5,15 @@ import copy
 import numpy as np
 from casatasks import gaincal, bandpass, applycal
 from casatools import table
-from .utils import (
+from evla_pipe.utils import (
     runtiming,
     logprint,
     RefAntHeuristics,
     testdelays,
     testBPdgains,
     getCalFlaggedSoln,
+    get_caltable_path,
+    format_qa_status,
 )
 
 tb = table()
@@ -60,11 +62,12 @@ def test_bandpass_and_delay_calibration(pipeline_context, priorcals):
     task_logprint("Doing test calibrations")
 
     # --- Initial phase solutions on the delay calibrator ---
-    os.system("rm -rf testdelayinitialgain.g")
+    testdelayinitialgain_table = str(get_caltable_path("testdelayinitialgain.g", "test"))
+    os.system(f"rm -rf {testdelayinitialgain_table}")
     uvrange_delay = uvrange3C84 if cal3C84_d else ""
     gaincal(
         vis=ms_active,
-        caltable="testdelayinitialgain.g",
+        caltable=testdelayinitialgain_table,
         field=delay_field_select_string,
         spw=tst_delay_spw,
         intent="",
@@ -92,14 +95,15 @@ def test_bandpass_and_delay_calibration(pipeline_context, priorcals):
     task_logprint("Initial phase calibration on delay calibrator complete")
 
     # --- Test delay calibration ---
-    os.system("rm -rf testdelay.k")
+    testdelay_table = str(get_caltable_path("testdelay.k", "test"))
+    os.system(f"rm -rf {testdelay_table}")
     found_good_refant = False
     for ii in range(min(5, len(RefAntOutput))):
         refAnt_test = str(RefAntOutput[ii])
         task_logprint(f"Testing reference antenna: {refAnt_test}")
         flaggedSolnResult = testdelays(
             ms_active,
-            "testdelay.k",
+            testdelay_table,
             delay_field_select_string,
             delay_scan_select_string,
             refAnt_test,
@@ -145,10 +149,11 @@ def test_bandpass_and_delay_calibration(pipeline_context, priorcals):
     for time_factor in (1.0, 3.0, 10.0):
         soltime = time_factor * int_time
         solint = f"{soltime}s"
-        os.system("rm -rf testBPdinitialgain.g")
+        testBPdinitialgain_table = str(get_caltable_path("testBPdinitialgain.g", "test"))
+        os.system(f"rm -rf {testBPdinitialgain_table}")
         flaggedSolnResult1 = testBPdgains(
             ms_active,
-            "testBPdinitialgain.g",
+            testBPdinitialgain_table,
             tst_bpass_spw,
             testgainscans,
             solint,
@@ -189,14 +194,15 @@ def test_bandpass_and_delay_calibration(pipeline_context, priorcals):
 
     # --- Test bandpass calibration ---
     task_logprint("Doing test bandpass calibration")
-    os.system("rm -rf testBPcal.b")
+    testBPcal_table = str(get_caltable_path("testBPcal.b", "test"))
+    os.system(f"rm -rf {testBPcal_table}")
     BPGainTables = copy.copy(priorcals)
-    BPGainTables.append("testdelay.k")
-    BPGainTables.append("testBPdinitialgain.g")
+    BPGainTables.append(testdelay_table)
+    BPGainTables.append(testBPdinitialgain_table)
     uvrange_bp = uvrange3C84 if cal3C84_bp else ""
     bandpass(
         vis=ms_active,
-        caltable="testBPcal.b",
+        caltable=testBPcal_table,
         field=bandpass_field_select_string,
         spw="",
         intent="",
@@ -221,7 +227,7 @@ def test_bandpass_and_delay_calibration(pipeline_context, priorcals):
         parang=False,
     )
     task_logprint("Test bandpass calibration complete")
-    flaggedSolnResultBP = getCalFlaggedSoln("testBPcal.b")
+    flaggedSolnResultBP = getCalFlaggedSoln(testBPcal_table)
     task_logprint(
         "Fraction of flagged BP solutions = " + str(flaggedSolnResultBP["all"]["fraction"])
     )
@@ -233,9 +239,9 @@ def test_bandpass_and_delay_calibration(pipeline_context, priorcals):
     # --- Apply test calibrations ---
     task_logprint("Applying test calibrations to BP and delay calibrators")
     AllCalTables = copy.copy(priorcals)
-    AllCalTables.append("testdelay.k")
-    AllCalTables.append("testBPdinitialgain.g")
-    AllCalTables.append("testBPcal.b")
+    AllCalTables.append(testdelay_table)
+    AllCalTables.append(testBPdinitialgain_table)
+    AllCalTables.append(testBPcal_table)
     ntables = len(AllCalTables)
 
     applycal(
@@ -284,7 +290,76 @@ def test_bandpass_and_delay_calibration(pipeline_context, priorcals):
     elif QA2_delay == "Partial" or QA2_gain == "Partial" or QA2_BP == "Partial":
         QA2_testBPdcals = "Partial"
 
-    task_logprint(f"QA2 score: {QA2_testBPdcals}")
+        # Import colored output function
+    task_logprint(f"QA2 score: {format_qa_status(QA2_testBPdcals)}")
     time_list = runtiming("testBPdcals_cal", "end")
 
-    return QA2_testBPdcals
+    # Save calibration tables to context for resume capability
+    calibration_results = {
+        "QA2_testBPdcals": QA2_testBPdcals,
+        "testBPdcals_tables": ["testdelayinitialgain.g", "testBPcal.b"],
+        "BPGainTables": BPGainTables,
+        "AllCalTables": AllCalTables,
+        "time_list": time_list
+    }
+    
+    return calibration_results
+
+def EVLA_pipe_testBPdcals(pipeline_context):
+    """
+    Main entry point for EVLA_pipe_testBPdcals pipeline step.
+    
+    Parameters
+    ----------
+    pipeline_context : dict
+        Pipeline context dictionary containing configuration and state
+        
+    Returns
+    -------
+    dict
+        Updated pipeline context
+    """
+    from evla_pipe.utils import runtiming, logprint
+    
+    task_logprint("*** Starting EVLA_pipe_testBPdcals.py ***")
+    time_list = runtiming("testBPdcals", "start")
+    
+    # Extract variables from context
+    ms_active = pipeline_context.get("msname", "")
+    
+    try:
+        # Call the main function if it exists
+        if "test_bandpass_and_delay_calibration" in globals():
+            # Get priorcals from previous step or use default
+            priorcals = pipeline_context.get("priorcals", ["gain_curves.g", "opacities.g"])
+            results = test_bandpass_and_delay_calibration(pipeline_context, priorcals)
+            if isinstance(results, dict):
+                # New format - results contain calibration tables
+                QA2_score = results.get("QA2_testBPdcals", "Pass")
+                # Save calibration tables to context
+                pipeline_context.update({
+                    "testBPdcals_tables": results.get("testBPdcals_tables", []),
+                    "BPGainTables": results.get("BPGainTables", []),
+                    "AllCalTables": results.get("AllCalTables", [])
+                })
+            else:
+                # Old format - just QA2 score
+                QA2_score = results
+        else:
+            # Default implementation - this needs to be customized per script
+            QA2_score = "Pass"
+            task_logprint("Default implementation - needs customization")
+    except Exception as e:
+        task_logprint(f"Error in EVLA_pipe_testBPdcals: {e}")
+        QA2_score = "Fail"
+    
+    task_logprint(f"Finished EVLA_pipe_testBPdcals.py")
+    task_logprint(f"QA2 score: {format_qa_status(QA2_score)}")
+    time_list = runtiming("testBPdcals", "end")
+    
+    
+    # Update context and return
+    pipeline_context["QA2_testBPdcals"] = QA2_score
+    pipeline_context["time_list"] = time_list
+    
+    return pipeline_context

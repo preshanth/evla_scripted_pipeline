@@ -10,9 +10,10 @@ Command line interface for the EVLA scripted pipeline.
 """
 
 import argparse
+import traceback
 import sys
-from . import continuum, check_casa_version, pipeline_save, pipeline_restore
-from . import __version_str__
+from evla_pipe import continuum, check_casa_version
+from evla_pipe import __version_str__
 
 
 def create_argument_parser():
@@ -23,9 +24,10 @@ def create_argument_parser():
         epilog="""
 Examples:
   %(prog)s dataset.ms
-  %(prog)s dataset.ms --skip-hanning
-  %(prog)s dataset.ms --enable-polarization
-  %(prog)s dataset.ms --skip-hanning --enable-polarization
+  %(prog)s dataset.ms --hanning
+  %(prog)s dataset.ms --polarization
+  %(prog)s dataset.ms --disable-plots
+  %(prog)s dataset.ms --hanning --polarization --disable-plots
   %(prog)s dataset.ms --restore pipeline_backup.restore
   %(prog)s --version
         """
@@ -44,15 +46,34 @@ Examples:
     )
     
     parser.add_argument(
-        "--skip-hanning",
+        "--hanning",
         action="store_true",
-        help="Skip Hanning smoothing step (recommended for spectral line projects)"
+        help="Enable Hanning smoothing (default: disabled)"
     )
     
     parser.add_argument(
-        "--enable-polarization",
+        "--polarization",
         action="store_true",
-        help="Enable polarization calibration"
+        help="Enable polarization calibration (default: disabled)"
+    )
+    
+    parser.add_argument(
+        "--disable-plots",
+        action="store_true",
+        help="Disable all plotting (improves performance)"
+    )
+    
+    parser.add_argument(
+        "--resume-from",
+        metavar="STEP",
+        help="Resume pipeline from specific step (e.g., EVLA_pipe_finalcals)"
+    )
+    
+    parser.add_argument(
+        "--skip",
+        metavar="STEP", 
+        action="append",
+        help="Skip specific pipeline step(s)"
     )
     
     parser.add_argument(
@@ -105,17 +126,17 @@ def main():
     try:
         result = continuum(
             sdm_name=args.sdm_name,
-            skip_hanning=args.skip_hanning,
+            skip_hanning=not args.hanning,  # Note: CLI --hanning flag enables it, continuum skip_hanning disables it
             verbose=args.verbose,
-            enable_polarization=args.enable_polarization
+            enable_polarization=args.polarization,
+            enable_plots=not args.disable_plots,
+            resume_from=args.resume_from,
+            skip_steps=args.skip or []
         )
-        
-        if args.save:
-            pipeline_save(args.save)
-            print(f":: Saved pipeline state to {args.save}")
             
     except Exception as e:
         print(f"Pipeline error: {e}")
+        traceback.print_exc()
         sys.exit(1)
     
     print(":: Pipeline completed successfully")

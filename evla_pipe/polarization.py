@@ -36,7 +36,7 @@ from pathlib import Path
 from casatasks import setjy, gaincal, polcal, applycal
 from casatools import msmetadata
 
-from .utils import runtiming, logprint, find_standards, find_EVLA_band, RefAntHeuristics
+from evla_pipe.utils import runtiming, logprint, find_standards, find_EVLA_band, RefAntHeuristics
 
 
 @dataclass

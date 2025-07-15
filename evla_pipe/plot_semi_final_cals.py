@@ -1,9 +1,9 @@
 # plot_semi_final_cals.py (Continued)
 
 import os
-from casaplotms import plotms
+from evla_pipe.plotting import plotms
 from casatools import table
-from .utils import logprint, runtiming
+from evla_pipe.utils import logprint, runtiming
 import numpy as np
 
 tb = table()

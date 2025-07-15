@@ -12,8 +12,7 @@ import numpy as np
 import scipy as sp
 import math
 
-from . import pipeline_save
-from .utils import runtiming, logprint, find_standards, find_EVLA_band
+from evla_pipe.utils import runtiming, logprint, find_standards, find_EVLA_band
 
 pi = np.pi
 
@@ -869,7 +868,8 @@ for ii, fields in enumerate(standard_source_fields):
 task_logprint("Finished setting models for known calibrators")
 '''
 task_logprint("Finished EVLA_pipe_calprep.py")
-task_logprint(f"QA2 score: {QA2_calprep}")
+    # Import colored output function
+    from evla_pipe.utils import format_qa_status
+    task_logprint(f"QA2 score: {format_qa_status(QA2_calprep)}")
 time_list = runtiming("calprep", "end")
 
-pipeline_save()

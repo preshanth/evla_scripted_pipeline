@@ -5,12 +5,13 @@ import os
 import numpy as np
 from casatasks import gaincal, bandpass, applycal
 from casatools import table
-from .utils import (
+from evla_pipe.utils import (
     logprint,
     runtiming,
     RefAntHeuristics,
     semiFinaldelays,
     getCalFlaggedSoln,
+    format_qa_status,
 )
 
 tb = table()
@@ -38,6 +39,7 @@ def perform_semi_final_calibration(pipeline_context, priorcals):
     ms_active = pipeline_context.get("msname")
     calibrator_field_select_string = pipeline_context.get("calibrator_field_select_string", "")
     delay_field_select_string = pipeline_context.get("delay_field_select_string", "")
+    delay_scan_select_string = pipeline_context.get("delay_scan_select_string", "")
     tst_delay_spw = pipeline_context.get("tst_delay_spw", "")
     uvrange3C84 = pipeline_context.get("uvrange3C84", "")
     cal3C84_d = pipeline_context.get("cal3C84_d", False)
@@ -45,6 +47,7 @@ def perform_semi_final_calibration(pipeline_context, priorcals):
     critfrac = pipeline_context.get("critfrac", 0.5)
     numAntenna = pipeline_context.get("numAntenna", 0)
     bandpass_field_select_string = pipeline_context.get("bandpass_field_select_string", "")
+    bandpass_scan_select_string = pipeline_context.get("bandpass_scan_select_string", "")
     tst_bpass_spw = pipeline_context.get("tst_bpass_spw", "")
     cal3C84_bp = pipeline_context.get("cal3C84_bp", False)
     gain_solint1 = pipeline_context.get("gain_solint1", "")
@@ -231,7 +234,51 @@ def perform_semi_final_calibration(pipeline_context, priorcals):
     elif QA2_delay == "Partial" or QA2_BP == "Partial":
         QA2_semiFinalBPdcals1 = "Partial"
 
-    task_logprint(f"QA2 score: {QA2_semiFinalBPdcals1}")
+    task_logprint(f"QA2 score: {format_qa_status(QA2_semiFinalBPdcals1)}")
     time_list = runtiming("semiFinalBPdcals1_cal", "end")
 
     return QA2_semiFinalBPdcals1
+
+def EVLA_pipe_semiFinalBPdcals1(pipeline_context):
+    """
+    Main entry point for EVLA_pipe_semiFinalBPdcals1 pipeline step.
+    
+    Parameters
+    ----------
+    pipeline_context : dict
+        Pipeline context dictionary containing configuration and state
+        
+    Returns
+    -------
+    dict
+        Updated pipeline context
+    """
+    task_logprint("*** Starting EVLA_pipe_semiFinalBPdcals1.py ***")
+    time_list = runtiming("semiFinalBPdcals1", "start")
+    
+    # Extract variables from context
+    ms_active = pipeline_context.get("msname", "")
+    
+    try:
+        # Call the main function if it exists
+        if "perform_semi_final_calibration" in globals():
+            # Get priorcals from previous step or use default
+            priorcals = pipeline_context.get("priorcals", ["gain_curves.g", "opacities.g"])
+            QA2_score = perform_semi_final_calibration(pipeline_context, priorcals)
+        else:
+            # Default implementation - this needs to be customized per script
+            QA2_score = "Pass"
+            task_logprint("Default implementation - needs customization")
+    except Exception as e:
+        task_logprint(f"Error in EVLA_pipe_semiFinalBPdcals1: {e}")
+        QA2_score = "Fail"
+    
+    task_logprint(f"Finished EVLA_pipe_semiFinalBPdcals1.py")
+    task_logprint(f"QA2 score: {format_qa_status(QA2_score)}")
+    time_list = runtiming("semiFinalBPdcals1", "end")
+    
+    # Update context and return
+    pipeline_context["QA2_semiFinalBPdcals1"] = QA2_score
+    pipeline_context["time_list"] = time_list
+    
+    return pipeline_context

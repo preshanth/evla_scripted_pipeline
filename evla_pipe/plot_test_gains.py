@@ -2,7 +2,7 @@
 
 from casatasks import rmtables
 from casatools import table
-from casaplotms import plotms
+from evla_pipe.plotting import plotms
 import numpy as np
 import os
 

@@ -1,0 +1,31 @@
+Table 3 
+Polarization Properties of 3C48, 3C138, 3C147, and 3C286
+
+
+Frequency	3C48p	3C48chi	3C138p	3C138chi	3C147p	3C147chi	3C286p	3C286chi	
+(GHz)	(%)	(deg)	(%)	(deg)	(%)	(deg)	(%)	(deg)	
+1.050	0.3	25	5.6	-14	<.05	 sdotsdotsdot 	8.6	33	
+1.450	0.5	140	7.5	-11	<.05	 sdotsdotsdot 	9.5	33	
+1.640	0.7	-5	8.4	-10	<.04	 sdotsdotsdot 	9.9	33	
+1.950	0.9	-150	9.0	-10	<.04	 sdotsdotsdot 	10.1	33	
+2.450	1.4	-120	10.4	-9	<.05	 sdotsdotsdot 	10.5	33	
+2.950	2.0	-100	10.7	-10	<.05	 sdotsdotsdot 	10.8	33	
+3.250	2.5	-92	10.0	-10	<.05	 sdotsdotsdot 	10.9	33	
+3.750	3.2	-84	 sdotsdotsdot 	 sdotsdotsdot 	<.04	 sdotsdotsdot 	11.1	33	
+4.500	3.8	-75	10.0	-11	0.1	-100	11.3	33	
+5.000	4.2	-72	10.4	-11	0.3	0	11.4	33	
+6.500	5.2	-68	9.8	-12	0.3	-65	11.6	33	
+7.250	5.2	-67	10.0	-12	0.6	-39	11.7	33	
+8.100	5.3	-64	10.4	-10	0.7	-24	11.9	33	
+8.800	5.4	-62	10.1	-8	0.8	-11	11.9	33	
+12.80	6.0	-62	8.4	-7	2.2	43	11.9	34	
+13.70	6.1	-62	7.9	-7	2.4	48	11.9	34	
+14.60	6.4	-63	7.7	-8	2.7	53	12.1	34	
+15.50	6.4	-64	7.4	-9	2.9	59	12.2	34	
+18.10	6.9	-66	6.7	-12	3.4	67	12.5	34	
+19.00	7.1	-67	6.5	-13	3.5	68	12.5	35	
+22.40	7.7	-70	6.7	-16	3.8	75	12.6	35	
+23.30	7.8	-70	6.6	-17	3.8	76	12.6	35	
+36.50	7.4	-77	6.6	-24	4.4	85	13.1	36	
+43.50	7.5	-85	6.5	-27	5.2	86	13.2	36	
+Notes. Properties listed are as measured in 2010 December. The polarization of 3C138 has been changing at higher frequencies due to a large flare which began in 2003. The other sources show relatively stable polarization over time.

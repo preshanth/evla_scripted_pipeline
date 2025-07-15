@@ -3,8 +3,8 @@ Facilitates the restart of the pipeline. The `pipeline_restore` function
 needs to be run before this script.
 """
 
-from . import exec_script
-from .utils import logprint
+from evla_pipe import exec_script
+from evla_pipe.utils import logprint
 
 
 pipeline_scripts = [

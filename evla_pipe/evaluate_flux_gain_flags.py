@@ -1,6 +1,6 @@
 # evaluate_flux_gain_flags.py
 
-from .utils import (
+from evla_pipe.utils import (
         runtiming,
         logprint,
         getCalFlaggedSoln,
