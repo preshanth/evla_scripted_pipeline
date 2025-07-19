@@ -56,11 +56,11 @@ class TestPolarizationConfig:
             
             # Test calibrator creation with minimal parameters
             calibrator = PolCalibrator(
-                source_name='3C286',
-                field_id=0,
-                spw_list=[0]
+                name = '3C286',
+                field_id = 0,
+                spws = [0]
             )
-            assert calibrator.source_name == '3C286'
+            assert calibrator.name == '3C286'
             assert calibrator.field_id == 0
             
         except (ImportError, TypeError):
