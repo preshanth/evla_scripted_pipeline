@@ -129,9 +129,8 @@ context = exec_script('EVLA_pipe_weblog', context)
 
 The pipeline supports two polarization calibration modes:
 
-### Mode 1: Enhanced Intensity Calibration (Default)
+### Mode 1: Intensity Calibration (Default)
 - Automatic polarization model integration during all `setjy` operations
-- Improves intensity calibration accuracy for all observations
 - Uses modern calibrator data with fallback as needed
 - No user action required
 
@@ -141,15 +140,13 @@ The pipeline supports two polarization calibration modes:
 - Requires polarization calibrators in the observation
 - Outputs fully calibrated data for polarization science
 
-Calibration steps include cross-hand delay (Xf) and D-term leakage (Df) corrections, applied together in `applycal`.
+Calibration steps include cross-hand delay (KCross) and D-term leakage (Df) corrections followed by polarization angle calibration (Xf), applied together in `applycal`.
 
 ### Automatic Calibrator Detection
 - Detects standard calibrators in the observation
 - Selects appropriate data based on observation date
 - Handles missing calibrators with fallbacks
-- Optimizes for VLA band
 
----
 
 ### Standard Pipeline Flow
 ```
@@ -250,7 +247,7 @@ if context.get('polarization_calibrated'):
 **Polarization calibration failed**
 - Cause: Insufficient calibrator data or S/N
 - Solution: Pipeline continues with intensity calibration
-- Action: Ensure adequate calibrator coverage
+- Action: No user action needed except to note the reason for skipping polcal.
 
 ### Debugging
 ```bash
@@ -324,9 +321,6 @@ integrate_polarization_setjy(
 
 ### Scientific References
 - Perley & Butler 2013: "An Accurate Flux Density Scale from 1 to 50 GHz"
-- 2019 VLA Polarization Measurements
-- CASA Documentation: https://casa.nrao.edu/
-- VLA Observational Guide: https://science.nrao.edu/facilities/vla/
 
 ### Development & Contribution
 ```bash
@@ -342,8 +336,8 @@ Follow PEP 8, use type hints, and include docstrings.
 
 ## License & Credits
 
-**License**: GNU General Public License (GPL) v2  
-**Copyright**: 2013-2024 Associated Universities Inc.
+**License**: GNU General Public License (GPL) v3  
+**Copyright**: 2013-2025 Associated Universities Inc.
 
 **Original Authors:**  
 - Claire Chandler (NRAO)
