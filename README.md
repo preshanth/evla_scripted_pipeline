@@ -6,7 +6,7 @@
 
 **A modern, robust, and fully integrated VLA data calibration pipeline with polarization support**
 
-The EVLA Scripted Pipeline provides automated calibration for Very Large Array (VLA) continuum and polarization observations. It leverages advanced heuristics and automated procedures to calibrate interferometric data, producing comprehensive diagnostic plots and web-based logs.
+The EVLA Scripted Pipeline provides automated calibration for Very Large Array (VLA) continuum and polarization observations. It leverages advanced heuristics and automated procedures to calibrate interferometric data, producing comprehensive diagnostic plots and weblogs.
 
 ---
 
