@@ -235,7 +235,7 @@ def continuum(sdm_name, skip_hanning=False, verbose=False, context=None, enable_
         if enable_polarization:
             if verbose:
                 print(":: Running polarization calibration (Df, Xf)")
-            exec_step("EVLA_pipe_polcal")
+            context = integrate_polarization_calibration(context)
 
         # Apply all calibrations (including polarization if enabled)
         if verbose:
