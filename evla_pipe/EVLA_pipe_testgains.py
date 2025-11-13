@@ -270,7 +270,7 @@ def determine_short_gain_solint(
     return pipeline_context
 
 
-def testgains(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
+def EVLA_pipe_testgains(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     """
     Main entry point for test gains pipeline step.
 
@@ -326,7 +326,3 @@ def testgains(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     task_logprint("*** Finished EVLA_pipe_testgains ***")
 
     return pipeline_context
-
-
-# Alias for backward compatibility
-EVLA_pipe_testgains = testgains

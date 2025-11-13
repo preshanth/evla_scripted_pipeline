@@ -18,16 +18,18 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Astronomy",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "numpy >= 1.11.1",
-    "scipy >= 0.18.1",
-    "casatasks",
-    "casatools",
-    "casaplotms",
+    "numpy >= 1.20.0",
+    "scipy >= 1.5.0",
+    "casatasks >= 6.1",
+    "casatools >= 6.1",
+    "casaplotms >= 6.1",
 ]
 
 [project.urls]
