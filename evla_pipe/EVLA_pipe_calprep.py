@@ -274,7 +274,8 @@ def calprep(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
 
                     spws = field_spws[field]
 
-                    if not spws or spws[0] >= len(center_frequencies):
+                    # Handle numpy arrays and lists - check length explicitly
+                    if spws is None or len(spws) == 0 or spws[0] >= len(center_frequencies):
                         task_logprint(f"WARNING: No spws or invalid spw indices for field {field}")
                         continue
 

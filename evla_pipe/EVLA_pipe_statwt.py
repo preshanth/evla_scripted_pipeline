@@ -85,8 +85,7 @@ def statwt_calibration(
     >>> context = statwt_calibration(context, target_spw="2~15")
     """
     task_logprint("*** Starting Statistical Weight Calculation ***")
-    time_list = pipeline_context.get("time_list", [])
-    time_list = runtiming("statwt", "start", time_list)
+    time_list = runtiming("statwt", "start")
 
     # Extract configuration from context
     ms_active = pipeline_context.get("msname", "")
@@ -143,7 +142,7 @@ def statwt_calibration(
         pipeline_context["error_message"] = str(e)
 
     # Finalize timing
-    time_list = runtiming("statwt", "end", time_list)
+    time_list = runtiming("statwt", "end")
 
     # Update context
     pipeline_context["QA2_statwt"] = QA2_score

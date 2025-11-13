@@ -107,11 +107,14 @@ def compute_initial_delay_phase(
 
     task_logprint("Computing initial phase solutions on delay calibrator")
 
-    os.system("rm -rf semiFinaldelayinitialgain.g")
+    from evla_pipe.utils import get_caltable_path
+    from casatasks import rmtables
+    semiFinaldelayinitialgain_table = get_caltable_path("semiFinaldelayinitialgain.g", "intermediate")
+    rmtables(semiFinaldelayinitialgain_table)
 
     gaincal(
         vis=ms_active,
-        caltable="semiFinaldelayinitialgain.g",
+        caltable=semiFinaldelayinitialgain_table,
         field=delay_field_select_string,
         spw=tst_delay_spw,
         intent="",
@@ -179,11 +182,14 @@ def compute_semi_final_delay(
 
     task_logprint("Computing semi-final delay calibration")
 
-    os.system("rm -rf delay.k")
+    from evla_pipe.utils import get_caltable_path
+    from casatasks import rmtables
+    delay_table = get_caltable_path("delay.k", "intermediate")
+    rmtables(delay_table)
 
     flaggedDelaySolns = semiFinaldelays(
         ms_active,
-        "delay.k",
+        delay_table,
         delay_field_select_string,
         delay_scan_select_string,
         refAnt,
@@ -229,7 +235,7 @@ def assess_delay_quality(flaggedDelaySolns: Dict[str, Any], critfrac: float) -> 
     else:
         QA2_delay = "Fail"
 
-    task_logprint(f"QA2_delay: {QA2_delay}")
+    task_logprint(f"QA2_delay: {format_qa_status(QA2_delay)}")
     return QA2_delay
 
 
@@ -266,15 +272,19 @@ def compute_bp_initial_gain(
 
     task_logprint("Computing initial gain calibration on BP calibrator")
 
-    os.system("rm -rf BPdinitialgain.g")
+    from evla_pipe.utils import get_caltable_path
+    from casatasks import rmtables
+    BPdinitialgain_table = get_caltable_path("BPdinitialgain.g", "intermediate")
+    delay_table = get_caltable_path("delay.k", "intermediate")
+    rmtables(BPdinitialgain_table)
 
     GainTables = copy.copy(priorcals)
-    GainTables.append("delay.k")
+    GainTables.append(delay_table)
     uvrange_bp = uvrange3C84 if cal3C84_bp else ""
 
     gaincal(
         vis=ms_active,
-        caltable="BPdinitialgain.g",
+        caltable=BPdinitialgain_table,
         field="",
         spw=tst_bpass_spw,
         selectdata=True,
@@ -345,16 +355,21 @@ def compute_bandpass_calibration(
 
     task_logprint("Computing semi-final bandpass calibration")
 
-    os.system("rm -rf BPcal.b")
+    from evla_pipe.utils import get_caltable_path
+    from casatasks import rmtables
+    BPcal_table = get_caltable_path("BPcal.b", "intermediate")
+    delay_table = get_caltable_path("delay.k", "intermediate")
+    BPdinitialgain_table = get_caltable_path("BPdinitialgain.g", "intermediate")
+    rmtables(BPcal_table)
 
     BPGainTables = copy.copy(priorcals)
-    BPGainTables.append("delay.k")
-    BPGainTables.append("BPdinitialgain.g")
+    BPGainTables.append(delay_table)
+    BPGainTables.append(BPdinitialgain_table)
     uvrange_bp = uvrange3C84 if cal3C84_bp else ""
 
     bandpass(
         vis=ms_active,
-        caltable="BPcal.b",
+        caltable=BPcal_table,
         field=bandpass_field_select_string,
         spw="",
         selectdata=True,
@@ -380,7 +395,7 @@ def compute_bandpass_calibration(
 
     task_logprint("Bandpass calibration complete")
 
-    flaggedBPSolns = getCalFlaggedSoln("BPcal.b")
+    flaggedBPSolns = getCalFlaggedSoln(BPcal_table)
 
     task_logprint(
         f"Fraction of flagged BP solutions = {flaggedBPSolns['all']['fraction']:.4f}"
@@ -419,7 +434,7 @@ def assess_bandpass_quality(flaggedBPSolns: Dict[str, Any]) -> str:
     else:
         QA2_BP = "Fail"
 
-    task_logprint(f"QA2_BP: {QA2_BP}")
+    task_logprint(f"QA2_BP: {format_qa_status(QA2_BP)}")
     return QA2_BP
 
 
@@ -448,9 +463,13 @@ def apply_calibrations_to_calibrators(
 
     task_logprint("Applying semi-final delay and BP calibrations to all calibrators")
 
+    from evla_pipe.utils import get_caltable_path
+    delay_table = get_caltable_path("delay.k", "intermediate")
+    BPcal_table = get_caltable_path("BPcal.b", "intermediate")
+
     AllCalTables = copy.copy(priorcals)
-    AllCalTables.append("delay.k")
-    AllCalTables.append("BPcal.b")
+    AllCalTables.append(delay_table)
+    AllCalTables.append(BPcal_table)
     ntables = len(AllCalTables)
 
     applycal(
@@ -645,3 +664,7 @@ def semifinalbpdcals1(
     time_list = runtiming("semiFinalBPdcals1", "end")
 
     return pipeline_context
+
+
+# Backward compatibility alias
+EVLA_pipe_semiFinalBPdcals1 = semifinalbpdcals1

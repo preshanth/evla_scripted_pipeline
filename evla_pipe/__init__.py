@@ -46,6 +46,13 @@ __description__ = "Automated calibration pipeline for VLA data"
 # Package path
 PIPE_PATH = Path(__file__).parent
 
+# CASA version detection
+try:
+    from casatasks import version
+    casa_version = tuple(version())
+except ImportError:
+    casa_version = None
+
 def exec_script(name, context, allow_failure=False):
     """Execute a pipeline script with given context."""
     from datetime import datetime
@@ -126,6 +133,7 @@ try:
     from evla_pipe.state_manager import PipelineStateManager
     from evla_pipe.pipeline_executor import PipelineExecutor, execute_pipeline_with_state_management
     from evla_pipe import plotting
+    from evla_pipe.cleanup import cleanup_pipeline_products
     try:
         from evla_pipe.polarization import PolarizationCalibrator, PolConfig, PolCalibrator
         from evla_pipe.polarization import find_pol_calibrators, calibrate_polarization_full
@@ -208,18 +216,20 @@ except ImportError:
 
 __all__ = [
     "continuum",
-    "check_casa_version", 
+    "check_casa_version",
     "exec_script",
     "PolarizationCalibrator",
-    "PolConfig", 
+    "PolConfig",
     "PolCalibrator",
     "find_pol_calibrators",
     "calibrate_polarization_full",
     "__version__",
     "__version_str__",
+    "casa_version",
     "PIPE_PATH",
     "PipelineStateManager",
     "PipelineExecutor",
     "execute_pipeline_with_state_management",
-    "plotting"
+    "plotting",
+    "cleanup_pipeline_products"
 ]

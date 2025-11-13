@@ -93,7 +93,13 @@ Examples:
         action="store_true",
         help="Enable verbose output"
     )
-    
+
+    parser.add_argument(
+        "--show-casa-output",
+        action="store_true",
+        help="Show CASA task output to console (default: suppressed, still goes to log files)"
+    )
+
     return parser
 
 
@@ -103,7 +109,14 @@ def main():
     args = parser.parse_args()
     
     print(f":: EVLA scripted pipeline v{__version_str__}")
-    
+
+    # Set CASA output visibility flag
+    if args.show_casa_output:
+        import evla_pipe.utils as utils
+        utils.SHOW_CASA_OUTPUT = True
+        if args.verbose:
+            print(":: CASA console output enabled")
+
     try:
         casa_version = check_casa_version()
         if casa_version and args.verbose:

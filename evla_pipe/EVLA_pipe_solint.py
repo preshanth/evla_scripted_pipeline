@@ -248,20 +248,51 @@ def solint(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
         pipeline_context["time_list"] = runtiming("solint", "end")
         return pipeline_context
 
-    if not phase_scan_list:
-        task_logprint("WARNING: phase_scan_list is empty, using default 30s solution interval")
-        pipeline_context["gain_solint2"] = "30.0s"
-        pipeline_context["QA2_solint"] = "Pass"
-        pipeline_context["time_list"] = runtiming("solint", "end")
-        return pipeline_context
-
     try:
         # Determine long solution interval
-        gain_solint2, calibrators_ms = determine_long_solint(
-            pipeline_context,
-            channels,
-            phase_scan_list
-        )
+        if not phase_scan_list:
+            task_logprint("WARNING: phase_scan_list is empty, using default 30s solution interval")
+            gain_solint2 = "30.0s"
+            # Still need to create calibrators.ms for later steps
+            calibrators_ms = "calibrators.ms"
+
+            # Create calibrators.ms even without phase scans
+            ms_active = pipeline_context.get("msname", "")
+            calibrator_scan_select_string = pipeline_context.get("calibrator_scan_select_string", "")
+
+            if calibrator_scan_select_string:
+                from casatasks import split, rmtables
+
+                rmtables(calibrators_ms)
+                width = int(max(channels)) if channels else 1
+
+                split(
+                    vis=ms_active,
+                    outputvis=calibrators_ms,
+                    datacolumn="data",
+                    field="",
+                    spw="",
+                    width=width,
+                    antenna="",
+                    timebin="0s",
+                    timerange="",
+                    scan=calibrator_scan_select_string,
+                    intent="",
+                    array="",
+                    uvrange="",
+                    correlation="",
+                    observation="",
+                    keepflags=False,
+                )
+                task_logprint(f"Created {calibrators_ms} with all calibrator scans")
+            else:
+                task_logprint("WARNING: No calibrator scans found, cannot create calibrators.ms")
+        else:
+            gain_solint2, calibrators_ms = determine_long_solint(
+                pipeline_context,
+                channels,
+                phase_scan_list
+            )
 
         # Update context with results
         pipeline_context["gain_solint2"] = gain_solint2

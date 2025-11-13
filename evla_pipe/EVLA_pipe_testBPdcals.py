@@ -743,9 +743,9 @@ def testbpdcals(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
             },
         })
 
-        task_logprint(f"QA2_delay: {QA2_delay}")
-        task_logprint(f"QA2_gain: {QA2_gain}")
-        task_logprint(f"QA2_BP: {QA2_BP}")
+        task_logprint(f"QA2_delay: {format_qa_status(QA2_delay)}")
+        task_logprint(f"QA2_gain: {format_qa_status(QA2_gain)}")
+        task_logprint(f"QA2_BP: {format_qa_status(QA2_BP)}")
         task_logprint(f"Overall QA2 score: {format_qa_status(QA2_testBPdcals)}")
 
     except Exception as e:

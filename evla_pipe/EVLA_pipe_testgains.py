@@ -255,6 +255,7 @@ def determine_short_gain_solint(
         task_logprint(f"\nFinal short solution interval: {gain_solint1}")
 
         pipeline_context["gain_solint1"] = gain_solint1
+        pipeline_context["refant"] = refAnt
         pipeline_context["QA2_testgains"] = "Pass"
 
     except Exception as e:
@@ -263,7 +264,7 @@ def determine_short_gain_solint(
         pipeline_context["error_message"] = str(e)
         # Set default values on failure
         pipeline_context["gain_solint1"] = "int"
-        pipeline_context["refAnt"] = ""
+        pipeline_context["refant"] = ""
 
     runtiming("testgains_solint", "end")
     return pipeline_context

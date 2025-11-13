@@ -544,6 +544,54 @@ def get_ms_info(pipeline_context):
         pipeline_context["polarization_lkg_field_select_string"] = ",".join(map(str, pipeline_context.get("polarization_lkg_field_list", [])))
         pipeline_context["polarization_lkg_scan_select_string"] = ",".join(map(str, pipeline_context.get("polarization_lkg_scan_list", [])))
 
+        # Create combined calibrator field and scan selection strings
+        # Union of all calibrator types (flux, BP, delay, phase, amp, pointing, pol)
+        all_cal_fields = set()
+        all_cal_scans = set()
+
+        for cal_type in ['flux', 'bandpass', 'delay', 'phase', 'ampli', 'pointing']:
+            all_cal_fields.update(cal_fields.get(cal_type, []))
+            all_cal_scans.update(cal_scans.get(cal_type, []))
+
+        # Add polarization calibrators if they exist
+        all_cal_fields.update(pipeline_context.get("polarization_angle_field_list", []))
+        all_cal_fields.update(pipeline_context.get("polarization_lkg_field_list", []))
+        all_cal_scans.update(pipeline_context.get("polarization_angle_scan_list", []))
+        all_cal_scans.update(pipeline_context.get("polarization_lkg_scan_list", []))
+
+        # If no calibrators found via intents, try to identify non-target fields
+        if not all_cal_fields:
+            task_logprint("WARNING: No calibrators found via intents, attempting to identify by field names")
+            # Look for standard calibrator names
+            standard_cal_names = [
+                '3c286', '3c138', '3c147', '3c48', '3c84',
+                'j1331+3030', 'j0521+1638', 'j0137+3309', 'j0542+4951',
+                '0137+331', '0542+498', '1331+305'
+            ]
+
+            for field_id, field_name in enumerate(field_names):
+                field_name_lower = field_name.lower().replace(' ', '').replace('_', '')
+                for cal_name in standard_cal_names:
+                    if cal_name in field_name_lower:
+                        all_cal_fields.add(field_id)
+                        # Get scans for this field
+                        try:
+                            field_scans = msmd.scansforfield(field_id)
+                            all_cal_scans.update(field_scans)
+                            task_logprint(f"Identified calibrator by name: {field_name} (field {field_id})")
+                        except:
+                            pass
+                        break
+
+        # Create selection strings
+        pipeline_context["calibrator_field_list"] = sorted(list(all_cal_fields))
+        pipeline_context["calibrator_scan_list"] = sorted(list(all_cal_scans))
+        pipeline_context["calibrator_field_select_string"] = ",".join(map(str, sorted(all_cal_fields)))
+        pipeline_context["calibrator_scan_select_string"] = ",".join(map(str, sorted(all_cal_scans)))
+
+        task_logprint(f"Identified {len(all_cal_fields)} calibrator field(s): {pipeline_context['calibrator_field_select_string']}")
+        task_logprint(f"Identified {len(all_cal_scans)} calibrator scan(s): {pipeline_context['calibrator_scan_select_string']}")
+
         # Additional pipeline variables
         pipeline_context["minBL_for_cal"] = max(3, int(basic['nantennas'] / 2.0))
 
@@ -631,6 +679,11 @@ def get_ms_info(pipeline_context):
         # Calculate tau
         pipeline_context["tau"] = calculate_tau(msname)
         task_logprint(f"Zenith opacity (tau): {pipeline_context['tau']}")
+
+        # Extract startdate from summary for requantizer gain check
+        summary = ms_metadata.get('basic_info', {}).get('summary', {})
+        pipeline_context["startdate"] = float(summary.get("BeginTime", 0.0))
+        task_logprint(f"Observation start date: {pipeline_context['startdate']:.2f} MJD")
 
         # ==================== RAW MSMD API DICT ====================
         task_logprint("Extracting raw msmd API calls for future reference...")

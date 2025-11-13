@@ -244,6 +244,23 @@ def flagall(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     return pipeline_context
 
 
+def EVLA_pipe_flagall(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Wrapper for exec_script compatibility.
+
+    Parameters
+    ----------
+    pipeline_context : dict
+        Pipeline context dictionary
+
+    Returns
+    -------
+    dict
+        Updated pipeline context
+    """
+    return flagall(pipeline_context)
+
+
 def _build_spw_end_channels_string(numSpws: int, channels: list) -> str:
     """
     Build SPW selection string for flagging end channels (5% at each end).

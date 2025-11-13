@@ -47,6 +47,35 @@ PIPELINE_CONTEXT_DIR.mkdir(exist_ok=True)
 
 MAINLOG = casalog.logfile()
 
+# Flag to control CASA console output (can be set by user or CLI flag)
+SHOW_CASA_OUTPUT = False  # Default: suppress verbose CASA output
+
+
+class SuppressCasaOutput:
+    """
+    Context manager to suppress CASA console output based on global flag.
+
+    Usage:
+        with SuppressCasaOutput():
+            # CASA tasks here will not print to console (unless SHOW_CASA_OUTPUT=True)
+            gaincal(...)
+
+    The output still goes to the log file, just not to stdout/console.
+    Set utils.SHOW_CASA_OUTPUT = True to enable console output.
+    """
+    def __enter__(self):
+        """Disable console output when entering context (if flag allows)."""
+        if not SHOW_CASA_OUTPUT:
+            casalog.showconsole(False)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Restore console output when exiting context (if it was suppressed)."""
+        if not SHOW_CASA_OUTPUT:
+            casalog.showconsole(True)
+        return False
+
+
 
 def format_qa_status(qa_status):
     """
@@ -941,7 +970,7 @@ def testBPdgains(
     ):
     # FIXME regularize names
     GainTables = copy.copy(priorcals)
-    GainTables.append('testdelay.k')
+    GainTables.append(str(get_caltable_path('testdelay.k', 'test')))
     uvrange = UVrange3C84 if do3C84 else ""
     gaincal(
             vis=calMs,
@@ -991,7 +1020,7 @@ def testdelays(
     """
     # FIXME regularize names
     GainTables = copy.copy(priorcals)
-    GainTables.append('testdelayinitialgain.g')
+    GainTables.append(str(get_caltable_path('testdelayinitialgain.g', 'test')))
     # FIXME see above note in docstring
     #uvrange = UVrange3C84 if do3C84 else ""
     uvrange = ""
@@ -1090,7 +1119,7 @@ def semiFinaldelays(
     """
     # FIXME regularize names
     GainTables=copy.copy(priorcals)
-    GainTables.append('semiFinaldelayinitialgain.g')
+    GainTables.append(str(get_caltable_path('semiFinaldelayinitialgain.g', 'intermediate')))
     # FIXME see note above in docstring.
     #uvrange = UVrange3C84 if do3C84 else ""
     uvrange = ""
