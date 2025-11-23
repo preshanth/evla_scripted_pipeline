@@ -1,0 +1,38 @@
+# Docker Compose configuration for EVLA Pipeline
+#
+# Usage:
+#   docker-compose run pipeline /data/your_observation.asdm
+#   docker-compose run pipeline --polarization /data/your_observation.asdm
+#   docker-compose run --rm pipeline-shell  # Interactive shell
+
+version: '3.8'
+
+services:
+  pipeline:
+    build: .
+    image: evla-pipeline:2.0
+    volumes:
+      # Mount current directory to /data in container
+      - .:/data
+      # Persist logs and outputs
+      - ./logs:/data/logs
+      - ./weblog:/data/weblog
+      - ./plots:/data/plots
+      - ./final_caltables:/data/final_caltables
+    working_dir: /data
+    environment:
+      - PYTHONUNBUFFERED=1
+    # Override entrypoint to accept arguments
+    entrypoint: ["evla-pipeline"]
+
+  pipeline-shell:
+    build: .
+    image: evla-pipeline:2.0
+    volumes:
+      - .:/data
+    working_dir: /data
+    environment:
+      - PYTHONUNBUFFERED=1
+    entrypoint: ["/bin/bash"]
+    stdin_open: true
+    tty: true

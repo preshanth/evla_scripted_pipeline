@@ -1,0 +1,51 @@
+Bootstrap: docker
+From: python:3.10-slim
+
+%labels
+    Maintainer NRAO <help@nrao.edu>
+    Description EVLA Scripted Pipeline v2.0 - Automated VLA calibration
+    Version 2.0.0
+
+%help
+    EVLA Scripted Pipeline v2.0
+
+    Build:
+        sudo singularity build evla-pipeline.sif Singularity.def
+
+    Run:
+        singularity run evla-pipeline.sif /path/to/data.asdm
+        singularity run evla-pipeline.sif --polarization /path/to/data.asdm
+
+    Interactive shell:
+        singularity shell evla-pipeline.sif
+
+    Bind data directory:
+        singularity run --bind /data:/data evla-pipeline.sif /data/obs.asdm
+
+%files
+    # Copy pipeline code into container
+    . /pipeline
+
+%post
+    # Install system dependencies
+    apt-get update
+    apt-get install -y git wget
+    apt-get clean
+    rm -rf /var/lib/apt/lists/*
+
+    # Install Python dependencies
+    cd /pipeline
+    pip install --no-cache-dir --upgrade pip
+    pip install --no-cache-dir -e .
+
+    # Create data directory
+    mkdir -p /data
+
+%environment
+    export PYTHONUNBUFFERED=1
+    export EVLA_PIPELINE_VERSION=2.0.0
+    export PATH=/usr/local/bin:$PATH
+
+%runscript
+    # Default: run pipeline with provided arguments
+    exec evla-pipeline "$@"

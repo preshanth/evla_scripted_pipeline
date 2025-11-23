@@ -117,6 +117,22 @@ Examples:
              "Enable this for debugging CASA task issues"
     )
 
+    parser.add_argument(
+        "--config",
+        metavar="FILE",
+        help="Load pipeline configuration from YAML file. Allows customizing all pipeline "
+             "parameters including paths, thresholds, and calibration settings. "
+             "Example: --config my_config.yaml. "
+             "Use 'evla-pipeline --create-config' to generate a template"
+    )
+
+    parser.add_argument(
+        "--create-config",
+        metavar="FILE",
+        help="Create a default configuration file template with all available options "
+             "and documentation. Example: --create-config evla_config.yaml"
+    )
+
     return parser
 
 
@@ -124,8 +140,32 @@ def main():
     """Main entry point for the EVLA pipeline CLI."""
     parser = create_argument_parser()
     args = parser.parse_args()
-    
+
+    # Handle config file creation
+    if args.create_config:
+        from evla_pipe.config import create_default_config_file
+        from pathlib import Path
+        create_default_config_file(Path(args.create_config))
+        print(f":: Created default configuration file: {args.create_config}")
+        print(f":: Edit this file and use with: evla-pipeline --config {args.create_config} <data.asdm>")
+        sys.exit(0)
+
     print(f":: EVLA scripted pipeline v{__version_str__}")
+
+    # Load configuration if specified
+    if args.config:
+        from evla_pipe.config import load_config_file
+        from pathlib import Path
+        try:
+            config = load_config_file(Path(args.config))
+            print(f":: Loaded configuration from {args.config}")
+            if args.verbose:
+                print(f":: minsnr={config.minsnr}, flag_critfrac={config.flag_critfrac}")
+        except Exception as e:
+            print(f"Error loading configuration: {e}")
+            sys.exit(1)
+    else:
+        config = None
 
     # Set CASA output visibility flag
     if args.show_casa_output:
