@@ -267,7 +267,22 @@ def continuum(sdm_name, skip_hanning=False, verbose=False, context=None, enable_
             print(":: Generating modern weblog")
         from .modern_weblog import EVLA_pipe_modern_weblog
         context = EVLA_pipe_modern_weblog(context)
-        
+
+        # Generate calibration recipe for reproducibility
+        if verbose:
+            print(":: Generating calibration recipe")
+        from .metadata import generate_recipe_script, save_recipe_metadata
+        from pathlib import Path
+        try:
+            generate_recipe_script(context, output_path=Path("calibration_recipe.py"))
+            save_recipe_metadata(context, output_path=Path("calibration_recipe_metadata.json"))
+            if verbose:
+                print(":: Saved calibration recipe: calibration_recipe.py")
+                print(":: Saved recipe metadata: calibration_recipe_metadata.json")
+        except Exception as e:
+            if verbose:
+                print(f":: Warning: Failed to generate recipe: {e}")
+
     except KeyboardInterrupt as e:
         if verbose:
             print(f":: Pipeline interrupted: {e}")
@@ -276,8 +291,8 @@ def continuum(sdm_name, skip_hanning=False, verbose=False, context=None, enable_
         if verbose:
             print(f":: Pipeline error: {e}")
         raise
-    
+
     if verbose:
         print(":: Pipeline completed successfully")
-    
+
     return context

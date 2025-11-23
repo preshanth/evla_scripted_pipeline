@@ -103,7 +103,6 @@ def exec_script(name, context, allow_failure=False):
     import json
     from evla_pipe.utils import PIPELINE_CONTEXT_DIR
     from evla_pipe.pipeline_steps import STEP_REGISTRY
-    from evla_pipe.metadata import record_pipeline_step
 
     # Save context before each step
     context_file = str(PIPELINE_CONTEXT_DIR / f"pipeline_context_{name}.json")
@@ -117,11 +116,6 @@ def exec_script(name, context, allow_failure=False):
     except Exception:
         pass
 
-    # Record step start in MS metadata
-    msname = context.get("msname")
-    if msname:
-        record_pipeline_step(msname, name, status="started")
-
     try:
         # Registry lookup - all steps must be registered
         if name not in STEP_REGISTRY:
@@ -133,20 +127,10 @@ def exec_script(name, context, allow_failure=False):
 
         func = STEP_REGISTRY[name]
         result = func(context)
-
-        # Record step completion in MS metadata
-        if msname:
-            qa_score = result.get(f"QA2_{name.replace('EVLA_pipe_', '')}", "Unknown")
-            record_pipeline_step(msname, name, parameters={"QA2": qa_score}, status="completed")
-
         return result
 
     except Exception as e:
         print(f"\n🚨 Pipeline step '{name}' failed: {e}")
-
-        # Record step failure in MS metadata
-        if msname:
-            record_pipeline_step(msname, name, parameters={"error": str(e)}, status="failed")
 
         if not allow_failure:
             try:

@@ -258,6 +258,31 @@ def applycals(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
 
             task_logprint("Successfully applied all calibrations")
 
+            # Record applycal command in recipe for reproducibility
+            from evla_pipe.metadata import add_recipe_step
+            applycal_command = f"""applycal(
+    vis="{ms_active}",
+    field="",
+    spw="",
+    intent="",
+    selectdata=False,
+    gaintable={repr(final_gain_tables)},
+    gainfield=[""] * {ntables},
+    interp=[""] * {ntables},
+    spwmap=[[]] * {ntables},
+    parang={True if do_pol else False},
+    calwt=[False] * {ntables},
+    applymode="calflagstrict",
+    flagbackup=True,
+)"""
+            add_recipe_step(
+                step_type='applycal',
+                command=applycal_command,
+                description=f"Apply {ntables} calibration tables to {ms_active}",
+                caltables=final_gain_tables
+            )
+            task_logprint(f"Recorded applycal command in calibration recipe")
+
         # Check flags after calibration
         final_flag_stats = _check_flags(ms_active, "after")
         pipeline_context["final_flag_stats"] = final_flag_stats
