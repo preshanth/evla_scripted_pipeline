@@ -14,6 +14,7 @@ from casatasks import gaincal, bandpass, applycal
 from casatools import table
 
 from evla_pipe.utils import (
+from evla_pipe.pipeline_steps import register_step
     logprint,
     runtiming,
     RefAntHeuristics,
@@ -668,3 +669,22 @@ def semifinalbpdcals1(
 
 # Backward compatibility alias
 EVLA_pipe_semiFinalBPdcals1 = semifinalbpdcals1
+
+
+
+@register_step("EVLA_pipe_semiFinalBPdcals1")
+def EVLA_pipe_semiFinalBPdcals1(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Wrapper for semifinalbpdcals1() to match expected step name.
+
+    Parameters
+    ----------
+    pipeline_context : dict
+        Pipeline context dictionary
+
+    Returns
+    -------
+    dict
+        Updated pipeline context
+    """
+    return semifinalbpdcals1(pipeline_context)

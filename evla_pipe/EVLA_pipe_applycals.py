@@ -11,6 +11,7 @@ from typing import Dict, Any, List, Optional
 from pathlib import Path
 from casatasks import flagdata, applycal
 from evla_pipe.utils import logprint, runtiming, get_log_path, get_caltable_path
+from evla_pipe.pipeline_steps import register_step
 
 
 def task_logprint(msg: str) -> None:
@@ -285,3 +286,22 @@ def applycals(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
 
 # Legacy compatibility
 EVLA_pipe_applycals = applycals
+
+
+
+@register_step("EVLA_pipe_applycals")
+def EVLA_pipe_applycals(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Wrapper for applycals() to match expected step name.
+
+    Parameters
+    ----------
+    pipeline_context : dict
+        Pipeline context dictionary
+
+    Returns
+    -------
+    dict
+        Updated pipeline context
+    """
+    return applycals(pipeline_context)

@@ -10,6 +10,7 @@ from pathlib import Path
 
 from evla_pipe.plotting import plotms
 from evla_pipe.utils import logprint
+from evla_pipe.pipeline_steps import register_step
 
 
 def task_logprint(msg: str) -> None:
@@ -134,3 +135,22 @@ if __name__ == "__main__":
     print(f"QA2 Status: {result_context.get('QA2_fluxflag')}")
     if result_context.get("fluxflag_plot"):
         print(f"Plot created: {result_context['fluxflag_plot']}")
+
+
+
+@register_step("EVLA_pipe_fluxflag")
+def EVLA_pipe_fluxflag(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Wrapper for fluxflag() to match expected step name.
+
+    Parameters
+    ----------
+    pipeline_context : dict
+        Pipeline context dictionary
+
+    Returns
+    -------
+    dict
+        Updated pipeline context
+    """
+    return fluxflag(pipeline_context)

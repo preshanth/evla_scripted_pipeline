@@ -11,6 +11,7 @@ from casatools import ms as mstool
 from pathlib import Path
 
 from evla_pipe.utils import logprint, runtiming, format_qa_status
+from evla_pipe.pipeline_steps import register_step
 
 
 def task_logprint(msg: str) -> None:
@@ -324,3 +325,22 @@ def solint(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
 
 # Legacy alias for backward compatibility
 EVLA_pipe_solint = solint
+
+
+
+@register_step("EVLA_pipe_solint")
+def EVLA_pipe_solint(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Wrapper for solint() to match expected step name.
+
+    Parameters
+    ----------
+    pipeline_context : dict
+        Pipeline context dictionary
+
+    Returns
+    -------
+    dict
+        Updated pipeline context
+    """
+    return solint(pipeline_context)

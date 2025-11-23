@@ -9,6 +9,7 @@ remaining RFI.
 from typing import Dict, Any
 from casatasks import flagdata
 from evla_pipe.utils import logprint, runtiming, format_qa_status
+from evla_pipe.pipeline_steps import register_step
 
 
 def task_logprint(msg: str) -> None:
@@ -165,3 +166,22 @@ def checkflag_semifinal(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
 
 # Legacy compatibility - allows import as EVLA_pipe_checkflag_semiFinal
 EVLA_pipe_checkflag_semiFinal = checkflag_semifinal
+
+
+
+@register_step("EVLA_pipe_checkflag_semiFinal")
+def EVLA_pipe_checkflag_semiFinal(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Wrapper for checkflag_semifinal() to match expected step name.
+
+    Parameters
+    ----------
+    pipeline_context : dict
+        Pipeline context dictionary
+
+    Returns
+    -------
+    dict
+        Updated pipeline context
+    """
+    return checkflag_semifinal(pipeline_context)

@@ -13,6 +13,7 @@ import scipy as sp
 from casatasks import fluxscale, casalog, setjy, rmtables
 from evla_pipe.plotting import plotms
 from evla_pipe.utils import MAINLOG, logprint, runtiming, find_EVLA_band, format_qa_status
+from evla_pipe.pipeline_steps import register_step
 
 
 def task_logprint(msg: str) -> None:
@@ -513,3 +514,22 @@ def fluxboot(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
 
 # Maintain backward compatibility
 EVLA_pipe_fluxboot = fluxboot
+
+
+
+@register_step("EVLA_pipe_fluxboot")
+def EVLA_pipe_fluxboot(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Wrapper for fluxboot() to match expected step name.
+
+    Parameters
+    ----------
+    pipeline_context : dict
+        Pipeline context dictionary
+
+    Returns
+    -------
+    dict
+        Updated pipeline context
+    """
+    return fluxboot(pipeline_context)

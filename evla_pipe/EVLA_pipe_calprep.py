@@ -12,6 +12,7 @@ from casatools import measures as mstool
 
 from evla_pipe.utils import runtiming, logprint, find_EVLA_band, find_standards, format_qa_status
 from evla_pipe.pol_setjy_utils import integrate_polarization_setjy
+from evla_pipe.pipeline_steps import register_step
 
 
 # Module-level CASA tool instances
@@ -320,3 +321,22 @@ def calprep(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
 
 # Backward compatibility alias
 EVLA_pipe_calprep = calprep
+
+
+
+@register_step("EVLA_pipe_calprep")
+def EVLA_pipe_calprep(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Wrapper for calprep() to match expected step name.
+
+    Parameters
+    ----------
+    pipeline_context : dict
+        Pipeline context dictionary
+
+    Returns
+    -------
+    dict
+        Updated pipeline context
+    """
+    return calprep(pipeline_context)

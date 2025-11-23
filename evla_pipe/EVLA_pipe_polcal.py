@@ -15,6 +15,7 @@ application.
 from typing import Dict, Any, List, Optional
 from casatasks import gaincal, polcal
 from evla_pipe.utils import runtiming, logprint, get_log_path, get_caltable_path
+from evla_pipe.pipeline_steps import register_step
 
 
 def task_logprint(msg: str) -> None:
@@ -375,3 +376,22 @@ def _perform_dterms_calibration(
 
     task_logprint(f"D-term leakage calibration completed: {dterms_table}")
     return dterms_table
+
+
+
+@register_step("EVLA_pipe_polcal")
+def EVLA_pipe_polcal(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Wrapper for polcal() to match expected step name.
+
+    Parameters
+    ----------
+    pipeline_context : dict
+        Pipeline context dictionary
+
+    Returns
+    -------
+    dict
+        Updated pipeline context
+    """
+    return polcal(pipeline_context)
