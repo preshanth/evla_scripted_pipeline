@@ -13,6 +13,7 @@ from time import gmtime, strftime
 
 from evla_pipe import __version_str__
 from evla_pipe.utils import (
+from evla_pipe.pipeline_steps import register_step
     logprint,
     runtiming,
     get_log_path,
@@ -28,6 +29,7 @@ def task_logprint(msg):
 
 # ... rest of your code ...
 
+@register_step("EVLA_pipe_filecollect")
 def EVLA_pipe_filecollect(pipeline_context):
     """
     Main entry point for EVLA_pipe_filecollect pipeline step.

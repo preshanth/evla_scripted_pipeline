@@ -11,6 +11,7 @@ from typing import Any, Dict
 from casatasks import flagdata, flagmanager
 
 from evla_pipe.utils import format_qa_status, logprint, runtiming
+from evla_pipe.pipeline_steps import register_step
 
 
 def task_logprint(msg: str) -> None:
@@ -208,6 +209,7 @@ def targetflag(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # Legacy entry point for backwards compatibility
+@register_step("EVLA_pipe_targetflag")
 def EVLA_pipe_targetflag(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     """
     Legacy entry point for EVLA_pipe_targetflag pipeline step.

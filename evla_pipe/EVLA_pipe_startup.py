@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from datetime import datetime
 from evla_pipe.utils import (
+from evla_pipe.pipeline_steps import register_step
     runtiming,
     logprint,
     get_log_path,
@@ -96,6 +97,7 @@ def pipeline_startup(pipeline_context):
 
     return pipeline_context
 
+@register_step("EVLA_pipe_startup")
 def EVLA_pipe_startup(pipeline_context):
     """
     Main entry point for EVLA_pipe_startup pipeline step.

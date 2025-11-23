@@ -17,6 +17,7 @@ from pathlib import Path
 
 from casatasks import flagdata, flagmanager
 from evla_pipe.utils import runtiming, logprint, format_qa_status
+from evla_pipe.pipeline_steps import register_step
 
 
 def task_logprint(msg: str) -> None:
@@ -244,6 +245,7 @@ def flagall(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     return pipeline_context
 
 
+@register_step("EVLA_pipe_flagall")
 def EVLA_pipe_flagall(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     """
     Wrapper for exec_script compatibility.

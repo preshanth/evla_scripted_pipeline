@@ -17,6 +17,7 @@ from casatasks import rmtables, gaincal, bandpass, setjy, fluxscale, casalog
 from casatools import table
 
 from evla_pipe.utils import (
+from evla_pipe.pipeline_steps import register_step
     logprint,
     runtiming,
     getCalFlaggedSoln,
@@ -823,6 +824,7 @@ def finalcals(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     return pipeline_context
 
 
+@register_step("EVLA_pipe_finalcals")
 def EVLA_pipe_finalcals(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     """
     Main entry point for finalcals pipeline step.

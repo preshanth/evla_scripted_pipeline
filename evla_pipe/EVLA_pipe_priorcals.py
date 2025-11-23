@@ -14,6 +14,7 @@ from typing import Dict, Any, List
 from pathlib import Path
 from casatasks import gencal
 from evla_pipe.utils import (
+from evla_pipe.pipeline_steps import register_step
     runtiming,
     logprint,
     correct_ant_posns,
@@ -414,6 +415,7 @@ def priorcals(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     return pipeline_context
 
 
+@register_step("EVLA_pipe_priorcals")
 def EVLA_pipe_priorcals(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     """
     Main entry point for EVLA_pipe_priorcals pipeline step.

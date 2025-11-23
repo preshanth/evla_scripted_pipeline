@@ -11,6 +11,7 @@ from pathlib import Path
 
 from casatasks import flagdata
 from evla_pipe.utils import logprint, runtiming, getBCalStatistics, format_qa_status
+from evla_pipe.pipeline_steps import register_step
 
 
 def task_logprint(msg: str) -> None:
@@ -384,6 +385,7 @@ def flag_bad_deformatters(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # Main entry point for backward compatibility
+@register_step("EVLA_pipe_flag_baddeformatters")
 def EVLA_pipe_flag_baddeformatters(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     """
     Main entry point for EVLA_pipe_flag_baddeformatters pipeline step.

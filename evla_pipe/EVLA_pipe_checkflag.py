@@ -11,6 +11,7 @@ Replaces: EVLA_pipe_checkflag.py (legacy global scope version)
 from typing import Dict, Any, Optional
 from casatasks import flagdata
 from evla_pipe.utils import logprint, runtiming, format_qa_status
+from evla_pipe.pipeline_steps import register_step
 
 
 def task_logprint(msg: str, step: str = "checkflag") -> None:
@@ -154,6 +155,7 @@ def check_rfi_flagging(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     return pipeline_context
 
 
+@register_step("EVLA_pipe_checkflag")
 def EVLA_pipe_checkflag(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     """
     Main entry point for EVLA checkflag pipeline step.

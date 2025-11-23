@@ -9,6 +9,7 @@ scatter within each spectral window.
 from typing import Dict, Any, Optional
 from casatasks import statwt
 from evla_pipe.utils import logprint, runtiming, format_qa_status
+from evla_pipe.pipeline_steps import register_step
 
 
 def task_logprint(msg: str) -> None:
@@ -154,6 +155,7 @@ def statwt_calibration(
     return pipeline_context
 
 
+@register_step("EVLA_pipe_statwt")
 def EVLA_pipe_statwt(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     """
     Legacy entry point for EVLA_pipe_statwt pipeline step.

@@ -3,10 +3,8 @@ import os
 import shutil
 from glob import glob
 from casatasks import hanningsmooth
-from evla_pipe.utils import runtiming, logprint
-
-def task_logprint(msg):
-    logprint(msg, logfileout="logs/hanning.log"), format_qa_status
+from evla_pipe.utils import runtiming, logprint, format_qa_status
+from evla_pipe.pipeline_steps import register_step
 
 def apply_hanning_smooth(pipeline_context):
     """
@@ -61,20 +59,22 @@ def apply_hanning_smooth(pipeline_context):
 
     return pipeline_context
 
+@register_step("EVLA_pipe_hanning")
 def EVLA_pipe_hanning(pipeline_context):
     """
     Main entry point for EVLA_pipe_hanning pipeline step.
-    
+
     Parameters
     ----------
     pipeline_context : dict
         Pipeline context dictionary containing configuration and state
-        
+
     Returns
     -------
     dict
         Updated pipeline context
     """
+    task_logprint = lambda msg: logprint(msg, logfileout="logs/hanning.log")
     task_logprint("*** Starting EVLA_pipe_hanning.py ***")
     time_list = runtiming("hanning", "start")
     

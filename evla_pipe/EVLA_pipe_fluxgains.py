@@ -9,6 +9,7 @@ from evla_pipe.utils import (
     format_qa_status,
 )
 from evla_pipe.pol_setjy_utils import integrate_polarization_setjy
+from evla_pipe.pipeline_steps import register_step
 
 def task_logprint(msg):
     logprint(msg, logfileout="logs/fluxgains_setjy.log")
@@ -98,6 +99,7 @@ def set_standard_source_models(pipeline_context, field_positions, field_spws, ce
 
     runtiming("fluxgains_setjy", "end")
 
+@register_step("EVLA_pipe_fluxgains")
 def EVLA_pipe_fluxgains(pipeline_context):
     """
     Main entry point for EVLA_pipe_fluxgains pipeline step.

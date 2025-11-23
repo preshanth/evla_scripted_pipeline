@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 from casatasks import importasdm
 from evla_pipe.utils import (
+from evla_pipe.pipeline_steps import register_step
     runtiming,
     logprint,
     format_qa_status,
@@ -94,6 +95,7 @@ def import_data(pipeline_context):
 
     return pipeline_context
 
+@register_step("EVLA_pipe_import")
 def EVLA_pipe_import(pipeline_context):
     """
     Main entry point for EVLA_pipe_import pipeline step.

@@ -91,27 +91,17 @@ def exec_script(name, context, allow_failure=False):
         pass
 
     try:
-        # Try registry first (new pattern)
-        if name in STEP_REGISTRY:
-            func = STEP_REGISTRY[name]
-            result = func(context)
-            return result
-
-        # Fall back to dynamic import (legacy pattern)
-        script_path = str(PIPE_PATH / f"{name}.py")
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(name, script_path)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-
-        if hasattr(module, name):
-            func = getattr(module, name)
-            result = func(context)
-            return result
-        else:
-            raise ImportError(
-                f"Step '{name}' not in registry and function not found in {name}.py"
+        # Registry lookup - all steps must be registered
+        if name not in STEP_REGISTRY:
+            raise KeyError(
+                f"Pipeline step '{name}' not registered.\n"
+                f"Available steps: {sorted(STEP_REGISTRY.keys())}\n"
+                f"To register: Add '@register_step(\"{name}\")' decorator to function."
             )
+
+        func = STEP_REGISTRY[name]
+        result = func(context)
+        return result
 
     except Exception as e:
         print(f"\n🚨 Pipeline step '{name}' failed: {e}")

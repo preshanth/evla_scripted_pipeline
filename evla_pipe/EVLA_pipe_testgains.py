@@ -10,6 +10,7 @@ from casatasks import rmtables
 from casatools import table
 
 from evla_pipe.utils import (
+from evla_pipe.pipeline_steps import register_step
     logprint,
     runtiming,
     RefAntHeuristics,
@@ -270,6 +271,7 @@ def determine_short_gain_solint(
     return pipeline_context
 
 
+@register_step("EVLA_pipe_testgains")
 def EVLA_pipe_testgains(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     """
     Main entry point for test gains pipeline step.
