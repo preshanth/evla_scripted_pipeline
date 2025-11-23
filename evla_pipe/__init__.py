@@ -28,9 +28,35 @@
 ######################################################################
 
 """
-EVLA Scripted Pipeline
+EVLA Scripted Pipeline - Automated VLA Data Calibration
 
-A Python package for automated calibration of VLA continuum data.
+Modern, pythonic pipeline for VLA continuum observations.
+
+Quick Start
+-----------
+From Python:
+    >>> from evla_pipe import continuum
+    >>> result = continuum('my_data.sdm')
+    >>> result = continuum('my_data.sdm', enable_polarization=True)
+
+From command line:
+    $ evla-pipeline my_data.sdm
+    $ evla-pipeline my_data.sdm --polarization --skip-hanning
+
+Features
+--------
+- Automated calibration workflow
+- Registry-based pipeline steps
+- State management with checkpointing
+- Modern weblog generation
+- Polarization calibration support
+- Resume from any step
+
+See Also
+--------
+- Pipeline steps: evla_pipe.pipeline_steps
+- Configuration: evla_pipe.config
+- Exceptions: evla_pipe.exceptions
 """
 
 import os
@@ -137,6 +163,16 @@ try:
     from evla_pipe.pipeline_executor import PipelineExecutor, execute_pipeline_with_state_management
     from evla_pipe import plotting, pipeline_steps
     from evla_pipe.cleanup import cleanup_pipeline_products
+    from evla_pipe.config import PipelineConfig, get_config
+    from evla_pipe.exceptions import (
+        PipelineError,
+        ConfigurationError,
+        DataError,
+        CalibrationError,
+        FlaggingError,
+        CASAError,
+    )
+    from evla_pipe.logging_config import get_logger, setup_logging
     try:
         from evla_pipe.polarization import PolarizationCalibrator, PolConfig, PolCalibrator
         from evla_pipe.polarization import find_pol_calibrators, calibrate_polarization_full
@@ -218,22 +254,40 @@ except ImportError:
         raise NotImplementedError("Polarization module not yet implemented")
 
 __all__ = [
+    # Core pipeline
     "continuum",
     "check_casa_version",
     "exec_script",
+    # Polarization
     "PolarizationCalibrator",
     "PolConfig",
     "PolCalibrator",
     "find_pol_calibrators",
     "calibrate_polarization_full",
+    # Version info
     "__version__",
     "__version_str__",
     "casa_version",
     "PIPE_PATH",
+    # State management
     "PipelineStateManager",
     "PipelineExecutor",
     "execute_pipeline_with_state_management",
+    # Configuration
+    "PipelineConfig",
+    "get_config",
+    # Exceptions
+    "PipelineError",
+    "ConfigurationError",
+    "DataError",
+    "CalibrationError",
+    "FlaggingError",
+    "CASAError",
+    # Logging
+    "get_logger",
+    "setup_logging",
+    # Modules
     "plotting",
     "cleanup_pipeline_products",
-    "pipeline_steps"
+    "pipeline_steps",
 ]

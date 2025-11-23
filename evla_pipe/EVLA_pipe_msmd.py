@@ -8,7 +8,8 @@ from casatasks import listobs, plotweather
 from casatools import table, ms, msmetadata
 
 from evla_pipe.utils import (
-from evla_pipe.pipeline_steps import register_step
+from evla_pipe.pipeline_steps
+from typing import Dict, Any import register_step
     uniq, runtiming, logprint, find_EVLA_band, format_qa_status
 )
 
@@ -51,7 +52,7 @@ def calculate_tau(msname):
         tau = plotweather(vis=msname, seasonal_weight=0.5, doPlot=True)
     return tau
 
-def get_ms_info(pipeline_context):
+def get_ms_info(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     """
     Collects ALL available metadata from the Measurement Set using msmetadata.
     
@@ -835,7 +836,7 @@ def get_ms_info(pipeline_context):
 
 
 @register_step("EVLA_pipe_msmd")
-def EVLA_pipe_msmd(pipeline_context):
+def EVLA_pipe_msmd(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     """
     Main entry point for EVLA_pipe_msmd pipeline step.
     

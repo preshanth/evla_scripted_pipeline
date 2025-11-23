@@ -34,70 +34,87 @@ Examples:
     )
     
     parser.add_argument(
-        "sdm_name", 
+        "sdm_name",
         nargs="?",
-        help="SDM directory name (without .ms extension)"
+        help="SDM directory or MS file to process. Can be either 'dataset.ms' or 'dataset.asdm'"
     )
-    
+
     parser.add_argument(
-        "--version", 
+        "--version",
         action="version",
         version=f"EVLA Scripted Pipeline v{__version_str__}"
     )
-    
+
     parser.add_argument(
         "--hanning",
         action="store_true",
-        help="Enable Hanning smoothing (default: disabled)"
+        help="Apply Hanning smoothing to visibility data. Recommended for spectral line "
+             "observations to reduce Gibbs ringing. Default: disabled for continuum observations"
     )
-    
+
     parser.add_argument(
         "--polarization",
         action="store_true",
-        help="Enable polarization calibration (default: disabled)"
+        help="Enable full polarization calibration including cross-hand delays, leakage terms, "
+             "and polarization angle calibration. Requires polarization calibrators in the data. "
+             "Default: disabled"
     )
-    
+
     parser.add_argument(
         "--disable-plots",
         action="store_true",
-        help="Disable all plotting (improves performance)"
+        help="Disable all diagnostic plot generation. Significantly improves performance but "
+             "reduces QA capability. Plots are saved to plots/ directory when enabled. "
+             "Default: plotting enabled"
     )
-    
+
     parser.add_argument(
         "--resume-from",
         metavar="STEP",
-        help="Resume pipeline from specific step (e.g., EVLA_pipe_finalcals)"
+        help="Resume pipeline execution from a specific step. Useful after fixing errors or "
+             "manual intervention. Example: --resume-from EVLA_pipe_finalcals. "
+             "Use with checkpointed pipeline state in pipeline_context/"
     )
-    
+
     parser.add_argument(
         "--skip",
-        metavar="STEP", 
+        metavar="STEP",
         action="append",
-        help="Skip specific pipeline step(s)"
+        help="Skip one or more pipeline steps. Can be specified multiple times. "
+             "Example: --skip EVLA_pipe_hanning --skip EVLA_pipe_testBPdcals. "
+             "Use with caution as skipping steps may affect calibration quality"
     )
-    
+
     parser.add_argument(
         "--restore",
         metavar="FILE",
-        help="Restore pipeline state from backup file"
+        help="Restore complete pipeline state from a backup file created with --save. "
+             "Allows restarting the pipeline from the exact state it was in when the backup "
+             "was created. Example: --restore pipeline_backups/backup_20250123.restore"
     )
-    
+
     parser.add_argument(
         "--save",
         metavar="FILE",
-        help="Save pipeline state to backup file"
+        help="Save current pipeline state to a backup file for later restoration. "
+             "Creates a checkpoint that can be restored with --restore. "
+             "Example: --save pipeline_backups/my_backup.restore"
     )
-    
+
     parser.add_argument(
         "--verbose", "-v",
         action="store_true",
-        help="Enable verbose output"
+        help="Enable verbose console output showing detailed progress information, "
+             "CASA version details, and step-by-step execution status. "
+             "All output is always logged to files regardless of this flag"
     )
 
     parser.add_argument(
         "--show-casa-output",
         action="store_true",
-        help="Show CASA task output to console (default: suppressed, still goes to log files)"
+        help="Display CASA task output directly to console. By default, CASA output is "
+             "suppressed from console but always saved to log files in logs/ directory. "
+             "Enable this for debugging CASA task issues"
     )
 
     return parser

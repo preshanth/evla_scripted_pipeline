@@ -3,7 +3,8 @@ import os
 from pathlib import Path
 from datetime import datetime
 from evla_pipe.utils import (
-from evla_pipe.pipeline_steps import register_step
+from evla_pipe.pipeline_steps
+from typing import Dict, Any import register_step
     runtiming,
     logprint,
     get_log_path,
@@ -14,7 +15,7 @@ from evla_pipe.pipeline_steps import register_step
 def task_logprint(msg):
     logprint(msg, logfileout="logs/startup.log")
 
-def pipeline_startup(pipeline_context):
+def pipeline_startup(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     """
     Performs initial startup tasks for the EVLA pipeline, including
     getting the SDM name and other initial parameters.
@@ -98,7 +99,7 @@ def pipeline_startup(pipeline_context):
     return pipeline_context
 
 @register_step("EVLA_pipe_startup")
-def EVLA_pipe_startup(pipeline_context):
+def EVLA_pipe_startup(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     """
     Main entry point for EVLA_pipe_startup pipeline step.
     

@@ -2,11 +2,15 @@
 import os
 import shutil
 from glob import glob
-from casatasks import hanningsmooth
-from evla_pipe.utils import runtiming, logprint, format_qa_status
-from evla_pipe.pipeline_steps import register_step
+from typing import Dict, Any
 
-def apply_hanning_smooth(pipeline_context):
+from casatasks import hanningsmooth
+
+from evla_pipe.pipeline_steps import register_step
+from evla_pipe.utils import runtiming, logprint, format_qa_status
+
+
+def apply_hanning_smooth(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     """
     Applies Hanning smoothing to the visibility data if the do_hanning flag is set.
 
@@ -60,7 +64,7 @@ def apply_hanning_smooth(pipeline_context):
     return pipeline_context
 
 @register_step("EVLA_pipe_hanning")
-def EVLA_pipe_hanning(pipeline_context):
+def EVLA_pipe_hanning(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     """
     Main entry point for EVLA_pipe_hanning pipeline step.
 

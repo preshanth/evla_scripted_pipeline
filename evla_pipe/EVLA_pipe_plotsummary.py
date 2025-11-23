@@ -4,12 +4,13 @@ Make final *uv* plots on all sources.
 
 from evla_pipe.plotting import plotms
 from evla_pipe.utils import logprint, runtiming, format_qa_status
-from evla_pipe.pipeline_steps import register_step
+from evla_pipe.pipeline_steps
+from typing import Dict, Any import register_step
 
 def task_logprint(msg):
     logprint(msg, logfileout="logs/plotsummary.log")
 
-def create_final_plots(pipeline_context):
+def create_final_plots(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     """
     Create final UV plots on all sources.
     
@@ -162,7 +163,7 @@ def create_final_plots(pipeline_context):
     return QA2_plotsummary
 
 @register_step("EVLA_pipe_plotsummary")
-def EVLA_pipe_plotsummary(pipeline_context):
+def EVLA_pipe_plotsummary(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     """
     Main entry point for EVLA_pipe_plotsummary pipeline step.
     
