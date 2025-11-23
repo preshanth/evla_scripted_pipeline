@@ -53,78 +53,91 @@ try:
 except ImportError:
     casa_version = None
 
+def convert_to_serializable(context):
+    """Convert context to JSON-serializable form."""
+    import json
+    serializable_context = {}
+    for key, value in context.items():
+        try:
+            json.dumps(value)
+            serializable_context[key] = value
+        except (TypeError, ValueError):
+            continue
+    return serializable_context
+
+
 def exec_script(name, context, allow_failure=False):
-    """Execute a pipeline script with given context."""
+    """
+    Execute a pipeline step.
+
+    First tries to find step in registry (new pattern).
+    Falls back to dynamic import for legacy scripts.
+    """
     from datetime import datetime
     import json
     from evla_pipe.utils import PIPELINE_CONTEXT_DIR
-    
-    script_path = str(PIPE_PATH / f"{name}.py")
-    
-    # Save context before each step for resume capability
+    from evla_pipe.pipeline_steps import STEP_REGISTRY
+
+    # Save context before each step
     context_file = str(PIPELINE_CONTEXT_DIR / f"pipeline_context_{name}.json")
     try:
-        # Create a serializable copy of context
-        serializable_context = {}
-        for key, value in context.items():
-            try:
-                json.dumps(value)  # Test if serializable
-                serializable_context[key] = value
-            except (TypeError, ValueError):
-                # Skip non-serializable values
-                continue
-        
+        serializable_context = convert_to_serializable(context)
         serializable_context["last_step"] = name
         serializable_context["timestamp"] = datetime.now().isoformat()
-        
+
         with open(context_file, 'w') as f:
             json.dump(serializable_context, f, indent=2)
     except Exception:
-        pass  # Don't fail if context save fails
-    
-    # Try to import and call as function first (new pattern)
+        pass
+
     try:
+        # Try registry first (new pattern)
+        if name in STEP_REGISTRY:
+            func = STEP_REGISTRY[name]
+            result = func(context)
+            return result
+
+        # Fall back to dynamic import (legacy pattern)
+        script_path = str(PIPE_PATH / f"{name}.py")
         import importlib.util
         spec = importlib.util.spec_from_file_location(name, script_path)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        
-        # Check if function exists
+
         if hasattr(module, name):
             func = getattr(module, name)
             result = func(context)
             return result
         else:
-            raise ImportError(f"Function '{name}' not found in module {name}.py - all pipeline scripts must be converted to function-based pattern")
-            
+            raise ImportError(
+                f"Step '{name}' not in registry and function not found in {name}.py"
+            )
+
     except Exception as e:
-        print(f"\n🚨 Pipeline step '{name}' failed with error: {e}")
-        
+        print(f"\n🚨 Pipeline step '{name}' failed: {e}")
+
         if not allow_failure:
-            # Save context with failure state
             try:
                 context[f"QA2_{name.replace('EVLA_pipe_', '')}"] = "Fail"
                 context["failed_step"] = name
                 context["failure_error"] = str(e)
-                
+
                 serializable_context = convert_to_serializable(context)
                 serializable_context["timestamp"] = datetime.now().isoformat()
-                
+
                 with open(context_file, 'w') as f:
                     json.dump(serializable_context, f, indent=2)
-                    
-                print(f"\n📋 Pipeline state saved to: {context_file}")
+
+                print(f"📋 Pipeline state saved to: {context_file}")
             except Exception:
-                print(f"\n📋 Failed to save pipeline state")
-                
-            print(f"⚠️  To resume from this point, fix the issue and run:")
-            print(f"   python -m evla_pipe.run_pipeline --resume-from {name} <your_data.asdm>")
-            print(f"\n💡 Or to skip this step (if non-critical):")
-            print(f"   python -m evla_pipe.run_pipeline --skip {name} <your_data.asdm>")
-            raise e
-        else:
-            print(f"⚠️  Continuing despite failure in non-critical step '{name}'")
-            return context
+                print("📋 Failed to save pipeline state")
+
+            print(f"⚠️  To resume: python -m evla_pipe.run_pipeline --resume-from {name} <data.asdm>")
+            print(f"💡 To skip: python -m evla_pipe.run_pipeline --skip {name} <data.asdm>")
+            raise
+
+        print(f"⚠️  Continuing despite failure in non-critical step '{name}'")
+        return context
 
 
 # Import main pipeline functions
@@ -132,7 +145,7 @@ try:
     from evla_pipe.pipeline import continuum, check_casa_version
     from evla_pipe.state_manager import PipelineStateManager
     from evla_pipe.pipeline_executor import PipelineExecutor, execute_pipeline_with_state_management
-    from evla_pipe import plotting
+    from evla_pipe import plotting, pipeline_steps
     from evla_pipe.cleanup import cleanup_pipeline_products
     try:
         from evla_pipe.polarization import PolarizationCalibrator, PolConfig, PolCalibrator
@@ -231,5 +244,6 @@ __all__ = [
     "PipelineExecutor",
     "execute_pipeline_with_state_management",
     "plotting",
-    "cleanup_pipeline_products"
+    "cleanup_pipeline_products",
+    "pipeline_steps"
 ]

@@ -358,6 +358,32 @@ body {
     font-size: 0.875rem;
 }
 
+.plots-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+    gap: 2rem;
+    margin-top: 1.5rem;
+}
+
+.plot-item h3 {
+    color: var(--primary-blue);
+    margin-bottom: 0.5rem;
+    font-size: 1rem;
+}
+
+.plot-item img {
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.plot-item img:hover {
+    transform: scale(1.02);
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
     .nav-tabs {
@@ -426,10 +452,23 @@ document.addEventListener('DOMContentLoaded', function() {
             # For missing variables, substitute with empty string
             return template.safe_substitute(**context)
 
-    def generate_full_page(self, page_title: str, content_template: str, 
+    def generate_full_page(self, page_title: str, content: str,
                           context: Dict[str, Any], active_nav: str = '') -> str:
-        """Generate a complete HTML page."""
-        
+        """
+        Generate a complete HTML page.
+
+        Parameters
+        ----------
+        page_title : str
+            Title of the page
+        content : str
+            Pre-rendered HTML content to insert into page
+        context : dict
+            Context dictionary (used for pipeline_version)
+        active_nav : str
+            Which nav item to mark as active
+        """
+
         # Prepare navigation context
         nav_context = {
             'index_active': 'active' if active_nav == 'index' else '',
@@ -438,14 +477,11 @@ document.addEventListener('DOMContentLoaded', function() {
             'qa_active': 'active' if active_nav == 'qa' else '',
             'plots_active': 'active' if active_nav == 'plots' else '',
         }
-        
+
         # Render navigation
         navigation = self.render_template('navigation', nav_context)
-        
-        # Render main content
-        content = self.render_template(content_template, context)
-        
-        # Render full page
+
+        # Render full page with provided content
         page_context = {
             'title': page_title,
             'navigation': navigation,
@@ -455,7 +491,7 @@ document.addEventListener('DOMContentLoaded', function() {
             'pipeline_version': context.get('pipeline_version', 'Unknown'),
             'generation_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')
         }
-        
+
         return self.render_template('base', page_context)
 
 

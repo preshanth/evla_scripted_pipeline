@@ -172,16 +172,16 @@ class ModernWeblogGenerator:
         """Generate the main summary page."""
         content = self.template_engine.render_template('summary', self.weblog_data)
         full_page = self.template_engine.generate_full_page(
-            'Pipeline Summary', 'summary', self.weblog_data, 'index'
+            'Pipeline Summary', content, self.weblog_data, 'index'
         )
-        
+
         with open(get_weblog_path('index.html'), 'w') as f:
             f.write(full_page)
     
     def _generate_observation_page(self):
         """Generate observation details page."""
         # Simple placeholder for now
-        obs_content = f"""
+        obs_content = """
         <section class="observation-section">
             <h2>Observation Details</h2>
             <div class="obs-details">
@@ -190,18 +190,17 @@ class ModernWeblogGenerator:
             </div>
         </section>
         """
-        
+
         full_page = self.template_engine.generate_full_page(
-            'Observation Details', 'base', 
-            {**self.weblog_data, 'content': obs_content}, 'observation'
+            'Observation Details', obs_content, self.weblog_data, 'observation'
         )
-        
+
         with open(get_weblog_path('observation.html'), 'w') as f:
             f.write(full_page)
     
     def _generate_calibration_page(self):
         """Generate calibration details page."""
-        cal_content = f"""
+        cal_content = """
         <section class="calibration-section">
             <h2>Calibration Details</h2>
             <div class="cal-details">
@@ -210,12 +209,11 @@ class ModernWeblogGenerator:
             </div>
         </section>
         """
-        
+
         full_page = self.template_engine.generate_full_page(
-            'Calibration Details', 'base',
-            {**self.weblog_data, 'content': cal_content}, 'calibration'
+            'Calibration Details', cal_content, self.weblog_data, 'calibration'
         )
-        
+
         with open(get_weblog_path('calibration.html'), 'w') as f:
             f.write(full_page)
     
@@ -226,38 +224,52 @@ class ModernWeblogGenerator:
         for step_data in self.weblog_data['qa_steps_data']:
             step_html = self.template_engine.render_template('qa_step', step_data)
             qa_steps_html.append(step_html)
-        
+
         qa_context = {
             **self.weblog_data,
             'qa_steps_content': '\n'.join(qa_steps_html),
             'qa_notes': 'Automated QA assessment completed. Review individual step details above.'
         }
-        
+
         content = self.template_engine.render_template('qa_report', qa_context)
         full_page = self.template_engine.generate_full_page(
-            'QA Report', 'qa_report', qa_context, 'qa'
+            'QA Report', content, qa_context, 'qa'
         )
-        
+
         with open(get_weblog_path('qa_report.html'), 'w') as f:
             f.write(full_page)
     
     def _generate_plots_page(self):
-        """Generate plots page."""
+        """Generate plots page with actual plot files."""
+        from pathlib import Path
+
+        # Find all PNG plots in weblog directory
+        weblog_path = Path(get_weblog_path(''))
+        plot_files = sorted(weblog_path.glob('*.png'))
+
+        if plot_files:
+            plots_html = '<div class="plots-grid">\n'
+            for plot_file in plot_files:
+                plot_name = plot_file.stem.replace('_', ' ').title()
+                plots_html += '  <div class="plot-item">\n'
+                plots_html += f'    <h3>{plot_name}</h3>\n'
+                plots_html += f'    <img src="{plot_file.name}" alt="{plot_name}">\n'
+                plots_html += '  </div>\n'
+            plots_html += '</div>\n'
+        else:
+            plots_html = '<p>No plots generated yet.</p>'
+
         plots_content = f"""
         <section class="plots-section">
             <h2>Diagnostic Plots</h2>
-            <div class="plots-grid">
-                <p>Interactive plot viewing will be implemented here.</p>
-                <p>This will include calibration plots, flagging summaries, and data quality plots.</p>
-            </div>
+            {plots_html}
         </section>
         """
-        
+
         full_page = self.template_engine.generate_full_page(
-            'Diagnostic Plots', 'base',
-            {**self.weblog_data, 'content': plots_content}, 'plots'
+            'Diagnostic Plots', plots_content, self.weblog_data, 'plots'
         )
-        
+
         with open(get_weblog_path('plots.html'), 'w') as f:
             f.write(full_page)
     
