@@ -80,20 +80,40 @@ def continuum(sdm_name, skip_hanning=False, verbose=False, context=None, enable_
     """
     if verbose:
         print(f":: Starting EVLA continuum pipeline v{__version_str__}")
-        
+
     if context is None:
         context = {}
-    
+
     # Set SDM name, polarization flag, and plotting flag in context
     if sdm_name:
         context["SDM_name"] = sdm_name
     context["do_pol"] = enable_polarization
     context["do_hanning"] = not skip_hanning  # Convert skip_hanning to do_hanning
     context["enable_plots"] = enable_plots
-    
+
     if skip_steps is None:
         skip_steps = []
-    
+
+    # Validate input data (unless resuming)
+    if not resume_from and sdm_name:
+        from pathlib import Path
+        from evla_pipe.validation import validate_all
+
+        if verbose:
+            print(":: Running pre-flight validation checks")
+
+        try:
+            validation_metadata = validate_all(Path(sdm_name), context)
+            context.update(validation_metadata)
+            if verbose:
+                print(f":: Validation passed - {validation_metadata.get('nant')} antennas, "
+                      f"{validation_metadata.get('nspw')} SPWs, "
+                      f"{validation_metadata.get('size_gb', 0):.1f} GB")
+        except Exception as e:
+            if verbose:
+                print(f":: Validation failed: {e}")
+            raise
+
     # Try to load previous context if resuming
     if resume_from:
         import json
@@ -111,31 +131,84 @@ def continuum(sdm_name, skip_hanning=False, verbose=False, context=None, enable_
     def should_skip_step(step_name):
         """Check if step should be skipped."""
         return step_name in skip_steps
-    
+
     def should_resume_from_step(step_name):
         """Check if we should start from this step."""
         if resume_from is None:
             return True
         return step_name == resume_from or context.get("started_resume", False)
-    
+
+    # Initialize progress bar (optional, based on verbose and tqdm availability)
+    progress_bar = None
+    try:
+        from evla_pipe.progress import PipelineProgressBar
+        # Only use progress bar if verbose and not resuming (resuming messes with step counts)
+        if verbose and not resume_from:
+            # Define all pipeline steps
+            all_steps = [
+                "EVLA_pipe_startup",
+                "EVLA_pipe_import",
+                "EVLA_pipe_hanning",
+                "EVLA_pipe_msmd",
+                "EVLA_pipe_flagall",
+                "EVLA_pipe_calprep",
+                "EVLA_pipe_priorcals",
+                "EVLA_pipe_testBPdcals",
+                "EVLA_pipe_flag_baddeformatters",
+                "EVLA_pipe_checkflag",
+                "EVLA_pipe_semiFinalBPdcals1",
+                "EVLA_pipe_checkflag_semiFinal",
+                "EVLA_pipe_solint",
+                "EVLA_pipe_testgains",
+                "EVLA_pipe_fluxgains",
+                "EVLA_pipe_fluxflag",
+                "EVLA_pipe_fluxboot",
+                "EVLA_pipe_finalcals",
+                "EVLA_pipe_polcal",  # Only if polarization enabled
+                "EVLA_pipe_applycals",
+                "EVLA_pipe_targetflag",
+                "EVLA_pipe_statwt",
+                "EVLA_pipe_plotsummary",
+                "EVLA_pipe_filecollect",
+                "weblog",
+            ]
+            # Filter out skipped steps
+            steps_to_run = [s for s in all_steps if s not in skip_steps]
+            progress_bar = PipelineProgressBar(steps_to_run, desc="Pipeline Progress")
+    except ImportError:
+        # tqdm not available
+        pass
+
     def exec_step(step_name, allow_failure=False):
         """Execute a pipeline step with skip/resume logic."""
         if should_skip_step(step_name):
             if verbose:
                 print(f":: Skipping {step_name} (user requested)")
             return
-        
+
         if not should_resume_from_step(step_name):
             if verbose:
                 print(f":: Skipping {step_name} (not at resume point yet)")
             return
-            
+
         # Mark that we've started resuming
         if resume_from == step_name:
             context["started_resume"] = True
-            
-        return exec_script(step_name, context, allow_failure=allow_failure)
-    
+
+        # Update progress bar description
+        if progress_bar:
+            progress_bar.set_description(f"Running {step_name}")
+
+        result = exec_script(step_name, context, allow_failure=allow_failure)
+
+        # Update progress bar after step completes
+        if progress_bar:
+            qa_key = f"QA2_{step_name.replace('EVLA_pipe_', '')}"
+            qa_status = context.get(qa_key, "Unknown")
+            progress_bar.update(step_name, qa_status=qa_status, context=context)
+
+        return result
+
     try:
         # The following script includes all the definitions and functions and
         # prior inputs needed by a run of the pipeline.
@@ -291,6 +364,10 @@ def continuum(sdm_name, skip_hanning=False, verbose=False, context=None, enable_
         if verbose:
             print(f":: Pipeline error: {e}")
         raise
+    finally:
+        # Close progress bar
+        if progress_bar:
+            progress_bar.close()
 
     if verbose:
         print(":: Pipeline completed successfully")

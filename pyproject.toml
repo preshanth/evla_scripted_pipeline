@@ -31,6 +31,7 @@ dependencies = [
     "casatools >= 6.1",
     "casaplotms >= 6.1",
     "pyyaml >= 5.1",
+    "tqdm >= 4.60",
 ]
 
 [project.urls]
