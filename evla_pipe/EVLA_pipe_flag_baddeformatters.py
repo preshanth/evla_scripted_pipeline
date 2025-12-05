@@ -35,7 +35,7 @@ def _flag_on_deformatters(
     nspwlimit: int = 4,
     doflagundernspwlimit: bool = True,
     doflagemptyspws: bool = False,
-    calBPtablename: str = "testBPcal.b",
+    calBPtablename: str = "test_caltables/testBPcal.b",
     flagreason: str = "bad_deformatters_amp or RFI",
 ) -> Dict[str, Any]:
     """
@@ -330,7 +330,7 @@ def flag_bad_deformatters(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
             nspwlimit=4,
             doflagundernspwlimit=True,
             doflagemptyspws=False,
-            calBPtablename="testBPcal.b",
+            calBPtablename="test_caltables/testBPcal.b",
             flagreason="bad_deformatters_amp or RFI",
         )
 
@@ -356,7 +356,7 @@ def flag_bad_deformatters(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
                 nspwlimit=4,
                 doflagundernspwlimit=True,
                 doflagemptyspws=False,
-                calBPtablename="testBPcal.b",
+                calBPtablename="test_caltables/testBPcal.b",
                 flagreason="bad_deformatters_phase or RFI",
             )
 

@@ -3,6 +3,7 @@
 from casatasks import setjy
 from evla_pipe.utils import (
     logprint,
+    _extract_position_tuples,
     find_standards,
     find_EVLA_band,
     runtiming,
@@ -29,8 +30,12 @@ def set_standard_source_models(pipeline_context, field_positions, field_spws, ce
 
     calibrators_ms = pipeline_context.get("msname", "calibrators.ms") # Default to calibrators.ms
     standard_source_names = ["3C48", "3C138", "3C147", "3C286"]
-    standard_source_fields = find_standards(field_positions)
-
+    task_logprint("TEST:running find_standards")
+    # Convert CASA measure dictionaries to position tuples
+    positions = _extract_position_tuples(field_positions)
+    standard_source_fields = find_standards(positions)
+    task_logprint("TEST:find_standards complete")
+    
     for ii, fields in enumerate(standard_source_fields):
         for myfield in fields:
             # field_spws is a list, not a dict - index by field number

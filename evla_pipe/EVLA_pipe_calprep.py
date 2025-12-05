@@ -10,7 +10,7 @@ from typing import Dict, Any, List, Tuple, Optional
 from casatasks import setjy
 from casatools import measures as mstool
 
-from evla_pipe.utils import runtiming, logprint, find_EVLA_band, find_standards, format_qa_status
+from evla_pipe.utils import runtiming, logprint, find_EVLA_band, _extract_position_tuples, find_standards, format_qa_status
 from evla_pipe.pol_setjy_utils import integrate_polarization_setjy
 
 
@@ -32,7 +32,7 @@ def task_logprint(msg: str) -> None:
     """
     logprint(msg, logfileout="logs/calprep.log")
 
-
+'''
 def _extract_position_tuples(field_positions: List[Dict[str, Any]]) -> List[Tuple[float, float]]:
     """
     Convert CASA measure dictionaries to (lon, lat) tuples in radians.
@@ -57,7 +57,7 @@ def _extract_position_tuples(field_positions: List[Dict[str, Any]]) -> List[Tupl
             task_logprint(f"Warning: Unexpected field position format: {field_pos}")
             positions.append((0.0, 0.0))  # Fallback to origin
     return positions
-
+'''
 
 def _set_polarization_models(
     ms_active: str,

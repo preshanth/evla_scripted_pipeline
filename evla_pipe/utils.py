@@ -6,6 +6,8 @@ import urllib
 import datetime
 from pathlib import Path
 
+from typing import Dict, Any, List, Tuple, Optional
+
 import numpy as np
 # NOTE `np` is aliased in `getBCalStatistics` so use `numpy` directly there.
 import numpy
@@ -24,7 +26,25 @@ from evla_pipe.compat import running_within_casa
 if not running_within_casa:
     from casatasks import (flagdata, casalog)
 
+MAINLOG = casalog.logfile()
 
+def logprint(msg, logfileout=None):
+    if logfileout is None:
+        # Print only to main log file
+        casalog.setlogfile(MAINLOG)
+        casalog.post(msg)
+    else:
+        # Print to both the passed and main log files
+        casalog.setlogfile(logfileout)
+        casalog.post(msg)
+        casalog.setlogfile(MAINLOG)
+        casalog.post(msg)
+    print(msg)
+    
+def task_logprint(msg):
+    logprint(msg, logfileout="logs/testing.log")
+    
+task_logprint("TEST:Loading pipeline directory structure")
 # Pipeline directory structure
 LOGS_DIR = Path("logs")
 MEASUREMENT_SETS_DIR = Path("measurement_sets")
@@ -35,6 +55,7 @@ WEBLOG_DIR = Path("weblog")
 PLOTS_DIR = Path("plots")
 PIPELINE_CONTEXT_DIR = Path("pipeline_context")
 
+task_logprint("TEST:Checking critical directories")
 # Ensure critical directories exist
 LOGS_DIR.mkdir(exist_ok=True)
 MEASUREMENT_SETS_DIR.mkdir(exist_ok=True)
@@ -45,7 +66,7 @@ WEBLOG_DIR.mkdir(exist_ok=True)
 PLOTS_DIR.mkdir(exist_ok=True)
 PIPELINE_CONTEXT_DIR.mkdir(exist_ok=True)
 
-MAINLOG = casalog.logfile()
+
 
 # Flag to control CASA console output (can be set by user or CLI flag)
 SHOW_CASA_OUTPUT = False  # Default: suppress verbose CASA output
@@ -288,6 +309,30 @@ def _calc_separation(pos1, pos2):
     deg_to_rad = np.pi / 180.0
     return me.separation(pos1, pos2)["value"] * deg_to_rad
 
+def _extract_position_tuples(field_positions: List[Dict[str, Any]]) -> List[Tuple[float, float]]:
+    """
+    Convert CASA measure dictionaries to (lon, lat) tuples in radians.
+
+    Parameters
+    ----------
+    field_positions : list of dict
+        CASA measure dictionaries with 'm0' (RA) and 'm1' (Dec)
+
+    Returns
+    -------
+    list of tuple
+        Position tuples as (longitude, latitude) in radians
+    """
+    positions = []
+    for field_pos in field_positions:
+        if isinstance(field_pos, dict) and 'm0' in field_pos and 'm1' in field_pos:
+            lon = field_pos['m0']['value']  # RA in radians
+            lat = field_pos['m1']['value']  # Dec in radians
+            positions.append((lon, lat))
+        else:
+            task_logprint(f"Warning: Unexpected field position format: {field_pos}")
+            positions.append((0.0, 0.0))  # Fallback to origin
+    return positions
 
 def find_standards(positions, max_sep=1.2e-3):
     """
@@ -303,8 +348,17 @@ def find_standards(positions, max_sep=1.2e-3):
     fields_3C138 = []
     fields_3C147 = []
     fields_3C286 = []
-    for ii, (lon, lat) in enumerate(positions):
+    task_logprint("TEST:Enumerating positions")
+    print(positions)
+    #task_logprint("TEST: positions[0].type = %s" %positions[0].type)
+    print(positions)
+    print(positions[0])
+    for ii, (lon,lat) in enumerate(positions):
+        #lon = pos['m0']['value']
+        #lat = pos['m1']['value']
+        task_logprint("TEST: ii, (lon, lat) = %s, %s, %s" %(ii, lon, lat))
         position = me.direction('j2000', "{0}rad".format(lon), "{0}rad".format(lat))
+        task_logprint("TEST:Calculating separation")
         separation = _calc_separation(position, position_3C48)
         if _calc_separation(position, position_3C48) < max_sep:
             fields_3C48.append(ii)
