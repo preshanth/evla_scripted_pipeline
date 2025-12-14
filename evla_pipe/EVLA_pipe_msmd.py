@@ -444,11 +444,28 @@ def get_ms_info(pipeline_context):
         cal_scans = {}
         cal_strings = {}
         
+        # Match intents by substring (case-insensitive) to handle variants
+        # such as 'CALIBRATE_FLUX#UNSPECIFIED' or similar suffixes.
         for intent in calibration_intents:
             intent_key = intent.lower().replace('calibrate_', '')
-            if intent in ms_metadata['intents']:
-                cal_fields[intent_key] = ms_metadata['intents'][intent]['fields']
-                cal_scans[intent_key] = ms_metadata['intents'][intent]['scans']
+            matched_fields = []
+            matched_scans = []
+
+            # Search all recorded intent keys for ones that contain the
+            # target intent string. Use case-insensitive matching.
+            for recorded_intent, intent_info in ms_metadata.get('intents', {}).items():
+                try:
+                    if intent.lower() in recorded_intent.lower():
+                        matched_fields.extend(intent_info.get('fields', []))
+                        matched_scans.extend(intent_info.get('scans', []))
+                except Exception:
+                    # If any intent entry is malformed, skip it
+                    continue
+
+            if matched_fields:
+                # Deduplicate and sort
+                cal_fields[intent_key] = sorted(list(set(matched_fields)))
+                cal_scans[intent_key] = sorted(list(set(matched_scans)))
                 cal_strings[f"{intent_key}_field_select_string"] = ",".join(map(str, cal_fields[intent_key]))
                 cal_strings[f"{intent_key}_scan_select_string"] = ",".join(map(str, cal_scans[intent_key]))
             else:
@@ -494,17 +511,38 @@ def get_ms_info(pipeline_context):
         pipeline_context["polarization_lkg_field_select_string"] = cal_strings["pol_leakage_field_select_string"]
         pipeline_context["polarization_lkg_scan_select_string"] = cal_strings["pol_leakage_scan_select_string"]
 
+        # Helper to create a normalized representation of a field/source name
+        # for case-insensitive and punctuation-robust matching.
+        def _normalize_name(name):
+            if not name:
+                return ""
+            # Lowercase and keep only alphanumeric characters
+            return "".join([c for c in name.lower() if c.isalnum()])
+
         # Polarization calibration logic
         polcals_A = ['J1331+3030', '3c286', '3C286', 'J0521+1638', '3c138', '3C138', 'J0137+3309', '0137+331=3C48', '3c48', '3C48']
         polcals_C = ['J0542+4951', '3c147', '3C147', 'J1407+2827', 'OQ208', 'Oq208', 'oq208', 'J0259+0747']
 
+        # Try to find polarization angle calibrators. Prefer msmd.fieldsforname
+        # which may be faster/cleaner; if that fails, use normalized substring
+        # matching against the extracted field names.
         if len(cal_fields['pol_angle']) == 0 and do_pol:
             task_logprint("Searching for standard polarization angle calibrators...")
             for polcal in polcals_A:
+                pol_angle_field_ids = []
+                # First try msmd.fieldsforname (may be exact/case-sensitive)
                 try:
                     pol_angle_field_ids = msmd.fieldsforname(polcal)
-                except:
+                except Exception:
                     pol_angle_field_ids = []
+
+                # If not found, fall back to normalized substring matching
+                if not pol_angle_field_ids:
+                    target_norm = _normalize_name(polcal)
+                    for fid, fname in enumerate(field_names):
+                        if target_norm and target_norm in _normalize_name(fname):
+                            pol_angle_field_ids.append(fid)
+
                 if pol_angle_field_ids:
                     pipeline_context["polarization_angle_field_list"].extend(pol_angle_field_ids)
                     for field_id in pol_angle_field_ids:
@@ -520,10 +558,18 @@ def get_ms_info(pipeline_context):
         if len(cal_fields['pol_leakage']) == 0 and do_pol:
             task_logprint("Searching for standard polarization leakage calibrators...")
             for polcal in polcals_C:
+                pol_lkg_field_ids = []
                 try:
                     pol_lkg_field_ids = msmd.fieldsforname(polcal)
-                except:
+                except Exception:
                     pol_lkg_field_ids = []
+
+                if not pol_lkg_field_ids:
+                    target_norm = _normalize_name(polcal)
+                    for fid, fname in enumerate(field_names):
+                        if target_norm and target_norm in _normalize_name(fname):
+                            pol_lkg_field_ids.append(fid)
+
                 if pol_lkg_field_ids:
                     pipeline_context["polarization_lkg_field_list"].extend(pol_lkg_field_ids)
                     for field_id in pol_lkg_field_ids:
@@ -591,6 +637,27 @@ def get_ms_info(pipeline_context):
 
         task_logprint(f"Identified {len(all_cal_fields)} calibrator field(s): {pipeline_context['calibrator_field_select_string']}")
         task_logprint(f"Identified {len(all_cal_scans)} calibrator scan(s): {pipeline_context['calibrator_scan_select_string']}")
+
+        # Backwards-compatibility: if no explicit flux calibrator was found via
+        # intents (so `flux_field_select_string` is empty) but we were able to
+        # identify calibrators by name (stored in `calibrator_field_list`),
+        # use that as a sensible fallback for the flux calibrator selection
+        # so downstream tasks (e.g. fluxboot) have a field string to use.
+        if not pipeline_context.get("flux_field_select_string"):
+            calib_fields = pipeline_context.get("calibrator_field_list", [])
+            if calib_fields:
+                # Populate flux_field_list and flux_field_select_string from
+                # the general calibrator list as a fallback.
+                pipeline_context.setdefault("flux_field_list", [])
+                # Only set flux_field_list if it's empty to avoid overwriting
+                if not pipeline_context.get("flux_field_list"):
+                    pipeline_context["flux_field_list"] = sorted(list(calib_fields))
+                # Set selection string from the (possibly new) flux_field_list
+                pipeline_context["flux_field_select_string"] = ",".join(map(str, pipeline_context["flux_field_list"]))
+                task_logprint(
+                    "No flux calibrator found via intents — using identified calibrator(s) "
+                    f"as flux calibrator(s): {pipeline_context['flux_field_select_string']}"
+                )
 
         # Additional pipeline variables
         pipeline_context["minBL_for_cal"] = max(3, int(basic['nantennas'] / 2.0))

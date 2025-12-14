@@ -27,9 +27,21 @@ classifiers = [
 dependencies = [
     "numpy >= 1.20.0",
     "scipy >= 1.5.0",
+]
+
+[project.optional-dependencies]
+# CASA-related packages are optional because many environments use the
+# CASA distribution which provides these packages outside of PyPI. To use
+# full pipeline functionality (plotting, casatasks/casatools), install with
+# the `casa` extra or install CASA-provided packages separately.
+casa = [
     "casatasks >= 6.1",
     "casatools >= 6.1",
-    "casaplotms >= 6.1",
+    # casaplotms versions >=6.x are not available on PyPI; use a
+    # realistic lower bound that exists on PyPI so the optional extra
+    # can be installed. Users with CASA distributions can still provide
+    # their system's casaplotms package.
+    "casaplotms >= 1.2.8",
 ]
 
 [project.urls]
