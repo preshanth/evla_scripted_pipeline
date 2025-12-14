@@ -1,0 +1,14 @@
+# Development requirements for contributors
+pytest
+black
+isort
+flake8
+numpy
+scipy
+protobuf==3.20.3
+
+# Optional: If you want CASA-based integration tests locally, install CASA
+# packages separately (conda or pip where available) or use the `casa`
+# extra: `pip install -e .[casa]`
+ruff
+pre-commit

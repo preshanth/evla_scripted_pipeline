@@ -39,32 +39,38 @@ This release is a complete overhaul of the original pipeline, featuring:
 
 ---
 
-## Requirements
+## Requirements & Installation
 
-- **CASA 6.1+** (monolithic or modular)
-- **Python 3.8+**
-- **NumPy, SciPy** (installed automatically)
+Minimum: Python 3.8+ (3.12 tested). This project separates CASA
+dependencies from the core package so you can develop and run
+lightweight tests without CASA installed.
 
-Tested with CASA 6.1+ in both monolithic and modular configurations. The pipeline detects and adapts to your CASA installation.
+Recommended quick install (no CASA):
 
----
-
-## Quick Start
-
-### Installation
 ```bash
 git clone <repository-url> evla-pipeline
 cd evla-pipeline
-pip install -r requirements.txt
-casa --version  # or import casatasks in Python
+# Create a virtualenv and install (protobuf pinned via constraints.txt)
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip setuptools wheel
+pip install -c constraints.txt -e .
 ```
 
-### Basic Usage
+If you need CASA (`casatools`, `casatasks`, `casaplotms`) install them via
+your CASA distribution or use the optional extra (may require available
+wheels for your Python version):
+
 ```bash
-python -m evla_pipe.run_pipeline your_data.asdm
-python -m evla_pipe.run_pipeline --enable-polarization your_data.asdm
-python -m evla_pipe.run_pipeline --skip-hanning your_data.asdm
-python -m evla_pipe.run_pipeline --enable-polarization --verbose your_data.asdm
+# install CASA extras from PyPI where available
+pip install -c constraints.txt -e .[casa]
+```
+
+Developer bootstrap (installs lint/test tooling):
+
+```bash
+./scripts/setup_dev_env.sh .venv
+source .venv/bin/activate
 ```
 
 ### Error Recovery & Resume
@@ -90,88 +96,21 @@ your_working_directory/
 └── measurement_sets/
 ```
 
-### Programmatic Usage
-```python
-import sys
-sys.path.append('/path/to/evla-pipeline')
-from evla_pipe import continuum
+### Testing
 
-context = continuum('your_data.asdm')
-context = continuum('your_data.asdm', enable_polarization=True, verbose=True)
-context = continuum(
-    sdm_name='your_data.asdm',
-    enable_polarization=True,
-    skip_hanning=False,
-    verbose=True
-)
-print(f"Pipeline completed. MS: {context['msname']}")
-if context.get('polarization_calibrated'):
-    print("Full polarization calibration successful.")
+There are two test tiers:
+- Lightweight unit tests (no CASA) — fast, run in CI.
+- Full integration tests — require CASA and the large test dataset; run locally when needed.
+
+Run lightweight tests:
+
+```bash
+pip install pytest
+pytest -q test/test_simple_utils.py
 ```
 
-### Modular Usage
-```python
-from evla_pipe import exec_script
-
-context = {'SDM_name': 'your_data.asdm', 'do_pol': True}
-context = exec_script('EVLA_pipe_startup', context)
-context = exec_script('EVLA_pipe_import', context)
-context = exec_script('EVLA_pipe_calprep', context)
-context = exec_script('EVLA_pipe_finalcals', context)
-context = exec_script('EVLA_pipe_polcal', context)
-context = exec_script('EVLA_pipe_applycals', context)
-context = exec_script('EVLA_pipe_weblog', context)
-```
-
----
-
-## Polarization Calibration Modes
-
-The pipeline supports two polarization calibration modes:
-
-### Mode 1: Intensity Calibration (Default)
-- Automatic polarization model integration during all `setjy` operations
-- Uses modern calibrator data with fallback as needed
-- No user action required
-
-### Mode 2: Full Polarization Calibration (Optional)
-- Enabled with `--enable-polarization`
-- Performs full polarization calibration for Stokes Q, U, V analysis
-- Requires polarization calibrators in the observation
-- Outputs fully calibrated data for polarization science
-
-Calibration steps include cross-hand delay (KCross) and D-term leakage (Df) corrections followed by polarization angle calibration (Xf), applied together in `applycal`.
-
-### Automatic Calibrator Detection
-- Detects standard calibrators in the observation
-- Selects appropriate data based on observation date
-- Handles missing calibrators with fallbacks
-
-
-### Standard Pipeline Flow
-```
-1. EVLA_pipe_startup
-2. EVLA_pipe_import
-3. EVLA_pipe_hanning
-4. EVLA_pipe_msinfo
-5. EVLA_pipe_flagall
-6. EVLA_pipe_calprep
-7. EVLA_pipe_priorcals
-8. EVLA_pipe_testBPdcals
-9. EVLA_pipe_checkflag
-10. EVLA_pipe_semiFinalBPdcals1
-11. EVLA_pipe_checkflag_semiFinal
-12. EVLA_pipe_solint
-13. EVLA_pipe_testgains
-14. EVLA_pipe_fluxgains
-15. EVLA_pipe_fluxboot
-16. EVLA_pipe_finalcals
-17. EVLA_pipe_polcal
-18. EVLA_pipe_applycals
-19. EVLA_pipe_targetflag
-20. EVLA_pipe_statwt
-21. EVLA_pipe_plotsummary
-22. EVLA_pipe_weblog
+Full integration tests and the historical `test/run_tests.py` require CASA and
+the test SDM/MS dataset; see `test/README.md` for details.
 ```
 
 ### Output Files
@@ -322,15 +261,14 @@ integrate_polarization_setjy(
 ### Scientific References
 - Perley & Butler 2013: "An Accurate Flux Density Scale from 1 to 50 GHz"
 
-### Development & Contribution
-```bash
-git clone <repository> evla-pipeline
-cd evla-pipeline
-pip install -r requirements.txt
-pip install -r test/requirements.txt
-python -m pytest test/
-```
-Follow PEP 8, use type hints, and include docstrings.
+### Development
+
+Use `./scripts/setup_dev_env.sh` to create a development venv and install lint/test
+tools. Run the lightweight unit tests during development; only run full
+integration tests when CASA and the dataset are available.
+
+Contributions: follow PEP 8, keep tests meaningful and fast, and add integration
+tests only where necessary.
 
 ---
 

@@ -7,21 +7,22 @@ to determine optimal reference antenna and solution intervals.
 Refactored from original EVLA_pipe_testBPdcals.py to follow function-based pattern.
 """
 
-import os
 import copy
-from typing import Dict, Any, List, Optional
-from casatasks import gaincal, bandpass, applycal
+import os
+from typing import Any, Dict, List
+
+from casatasks import applycal, bandpass, gaincal
 from casatools import table
 
 from evla_pipe.utils import (
-    runtiming,
-    logprint,
     RefAntHeuristics,
-    testdelays,
-    testBPdgains,
-    getCalFlaggedSoln,
-    get_caltable_path,
     format_qa_status,
+    get_caltable_path,
+    getCalFlaggedSoln,
+    logprint,
+    runtiming,
+    testBPdgains,
+    testdelays,
 )
 
 tb = table()
@@ -40,9 +41,7 @@ def task_logprint(msg: str) -> None:
 
 
 def find_reference_antenna(
-    ms_active: str,
-    refantfield: str,
-    minBL_for_cal: int
+    ms_active: str, refantfield: str, minBL_for_cal: int
 ) -> List[str]:
     """
     Find suitable reference antenna candidates using heuristics.
@@ -85,7 +84,7 @@ def calibrate_initial_delay_phase(
     minBL_for_cal: int,
     priorcals: List[str],
     cal3C84_d: bool,
-    uvrange3C84: str
+    uvrange3C84: str,
 ) -> str:
     """
     Compute initial phase solutions on delay calibrator.
@@ -118,7 +117,9 @@ def calibrate_initial_delay_phase(
     """
     task_logprint("Computing initial phase solutions on delay calibrator")
 
-    testdelayinitialgain_table = str(get_caltable_path("testdelayinitialgain.g", "test"))
+    testdelayinitialgain_table = str(
+        get_caltable_path("testdelayinitialgain.g", "test")
+    )
     os.system(f"rm -rf {testdelayinitialgain_table}")
 
     uvrange_delay = uvrange3C84 if cal3C84_d else ""
@@ -165,7 +166,7 @@ def test_delay_calibration(
     priorcals: List[str],
     cal3C84_d: bool,
     uvrange3C84: str,
-    critfrac: float
+    critfrac: float,
 ) -> Dict[str, Any]:
     """
     Test delay calibration with multiple reference antennas.
@@ -273,7 +274,7 @@ def test_initial_gains(
     priorcals: List[str],
     cal3C84: bool,
     uvrange3C84: str,
-    int_time: float
+    int_time: float,
 ) -> Dict[str, Any]:
     """
     Test initial amplitude and phase gain solutions with varying solution intervals.
@@ -319,7 +320,9 @@ def test_initial_gains(
         soltime = time_factor * int_time
         solint = f"{soltime}s"
 
-        testBPdinitialgain_table = str(get_caltable_path("testBPdinitialgain.g", "test"))
+        testBPdinitialgain_table = str(
+            get_caltable_path("testBPdinitialgain.g", "test")
+        )
         os.system(f"rm -rf {testBPdinitialgain_table}")
 
         flaggedSolnResult = testBPdgains(
@@ -386,7 +389,7 @@ def test_bandpass_calibration(
     delay_table: str,
     gain_table: str,
     cal3C84_bp: bool,
-    uvrange3C84: str
+    uvrange3C84: str,
 ) -> Dict[str, Any]:
     """
     Compute test bandpass calibration.
@@ -497,7 +500,7 @@ def apply_test_calibrations(
     priorcals: List[str],
     delay_table: str,
     gain_table: str,
-    bp_table: str
+    bp_table: str,
 ) -> None:
     """
     Apply all test calibrations to the data.
@@ -608,11 +611,15 @@ def testbpdcals(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     # Extract parameters from context
     ms_active = pipeline_context.get("msname", "")
     delay_field_select_string = pipeline_context.get("delay_field_select_string", "")
-    bandpass_field_select_string = pipeline_context.get("bandpass_field_select_string", "")
+    bandpass_field_select_string = pipeline_context.get(
+        "bandpass_field_select_string", ""
+    )
     tst_delay_spw = pipeline_context.get("tst_delay_spw", "")
     tst_bpass_spw = pipeline_context.get("tst_bpass_spw", "")
     delay_scan_select_string = pipeline_context.get("delay_scan_select_string", "")
-    bandpass_scan_select_string = pipeline_context.get("bandpass_scan_select_string", "")
+    bandpass_scan_select_string = pipeline_context.get(
+        "bandpass_scan_select_string", ""
+    )
     refantfield = pipeline_context.get("calibrator_field_select_string", "")
     uvrange3C84 = pipeline_context.get("uvrange3C84", "")
     cal3C84_d = pipeline_context.get("cal3C84_d", False)
@@ -631,7 +638,7 @@ def testbpdcals(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
         )
 
         # Compute initial delay phase solutions
-        initial_delay_gain_table = calibrate_initial_delay_phase(
+        calibrate_initial_delay_phase(
             ms_active,
             delay_field_select_string,
             tst_delay_spw,
@@ -721,27 +728,29 @@ def testbpdcals(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
         AllCalTables.append(bp_results["bp_table"])
 
         # Update context with results
-        pipeline_context.update({
-            "QA2_testBPdcals": QA2_testBPdcals,
-            "QA2_delay": QA2_delay,
-            "QA2_gain": QA2_gain,
-            "QA2_BP": QA2_BP,
-            "refant": selected_refant,
-            "gain_solint1": gain_results["gain_solint"],
-            "testBPdcals_tables": [
-                "testdelayinitialgain.g",
-                "testdelay.k",
-                "testBPdinitialgain.g",
-                "testBPcal.b",
-            ],
-            "BPGainTables": bp_results["bp_gaintables"],
-            "AllCalTables": AllCalTables,
-            "testBPdcals_flagged_fractions": {
-                "delay": delay_results["flagged_fraction"],
-                "gain": gain_results["flagged_fraction"],
-                "bandpass": bp_results["flagged_fraction"],
-            },
-        })
+        pipeline_context.update(
+            {
+                "QA2_testBPdcals": QA2_testBPdcals,
+                "QA2_delay": QA2_delay,
+                "QA2_gain": QA2_gain,
+                "QA2_BP": QA2_BP,
+                "refant": selected_refant,
+                "gain_solint1": gain_results["gain_solint"],
+                "testBPdcals_tables": [
+                    "testdelayinitialgain.g",
+                    "testdelay.k",
+                    "testBPdinitialgain.g",
+                    "testBPcal.b",
+                ],
+                "BPGainTables": bp_results["bp_gaintables"],
+                "AllCalTables": AllCalTables,
+                "testBPdcals_flagged_fractions": {
+                    "delay": delay_results["flagged_fraction"],
+                    "gain": gain_results["flagged_fraction"],
+                    "bandpass": bp_results["flagged_fraction"],
+                },
+            }
+        )
 
         task_logprint(f"QA2_delay: {format_qa_status(QA2_delay)}")
         task_logprint(f"QA2_gain: {format_qa_status(QA2_gain)}")
@@ -750,13 +759,15 @@ def testbpdcals(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
 
     except Exception as e:
         task_logprint(f"Error in test bandpass and delay calibration: {e}")
-        pipeline_context.update({
-            "QA2_testBPdcals": "Fail",
-            "QA2_delay": "Fail",
-            "QA2_gain": "Fail",
-            "QA2_BP": "Fail",
-            "error_message": str(e),
-        })
+        pipeline_context.update(
+            {
+                "QA2_testBPdcals": "Fail",
+                "QA2_delay": "Fail",
+                "QA2_gain": "Fail",
+                "QA2_BP": "Fail",
+                "error_message": str(e),
+            }
+        )
 
     time_list = runtiming("testBPdcals", "end")
     pipeline_context["time_list"] = time_list

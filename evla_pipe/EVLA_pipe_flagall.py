@@ -12,11 +12,12 @@ This module applies deterministic flagging to the measurement set including:
 Refactored from original EVLA_pipe_flagall.py to follow function-based patterns.
 """
 
-from typing import Dict, Any
 from pathlib import Path
+from typing import Any, Dict
 
 from casatasks import flagdata, flagmanager
-from evla_pipe.utils import runtiming, logprint, format_qa_status
+
+from evla_pipe.utils import format_qa_status, logprint, runtiming
 
 
 def task_logprint(msg: str) -> None:
@@ -77,7 +78,7 @@ def flagall(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     """
 
     task_logprint("*** Starting EVLA_pipe_flagall.py (Refactored) ***")
-    time_list = runtiming("flagall", "start")
+    runtiming("flagall", "start")
     QA2_flagall = "Pass"
 
     # Extract required parameters from context
@@ -123,7 +124,9 @@ def flagall(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
             cmdreason_list.append("ANTENNA_NOT_ON_SOURCE")
             task_logprint("ANTENNA_NOT_ON_SOURCE flags will be applied")
         else:
-            task_logprint("No online flags file found - ANTENNA_NOT_ON_SOURCE flags will NOT be applied")
+            task_logprint(
+                "No online flags file found - ANTENNA_NOT_ON_SOURCE flags will NOT be applied"
+            )
 
         # --- Shadow Flagging ---
         flagging_commands.append("mode='shadow' tolerance=0.0 reason='shadow'")
@@ -131,20 +134,28 @@ def flagall(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
         task_logprint("Shadow flagging will be applied")
 
         # --- Zero Flagging ---
-        flagging_commands.append("mode='clip' clipzeros=True correlation='ABS_ALL' reason='CLIP_ZERO_ALL'")
+        flagging_commands.append(
+            "mode='clip' clipzeros=True correlation='ABS_ALL' reason='CLIP_ZERO_ALL'"
+        )
         cmdreason_list.append("CLIP_ZERO_ALL")
         task_logprint("Zero clipping will be applied")
 
         # --- Pointing Scans ---
         if len(pointing_state_IDs) > 0:
-            flagging_commands.append("mode='manual' intent='*POINTING*' reason='pointing'")
+            flagging_commands.append(
+                "mode='manual' intent='*POINTING*' reason='pointing'"
+            )
             cmdreason_list.append("pointing")
             task_logprint("Pointing scans will be flagged")
 
         # --- Setup Scans ---
-        flagging_commands.append("mode='manual' intent='UNSPECIFIED#UNSPECIFIED' reason='setup'")
+        flagging_commands.append(
+            "mode='manual' intent='UNSPECIFIED#UNSPECIFIED' reason='setup'"
+        )
         cmdreason_list.append("setup")
-        flagging_commands.append("mode='manual' intent='SYSTEM_CONFIGURATION#UNSPECIFIED' reason='setup'")
+        flagging_commands.append(
+            "mode='manual' intent='SYSTEM_CONFIGURATION#UNSPECIFIED' reason='setup'"
+        )
         cmdreason_list.append("setup")
         task_logprint("Setup scans will be flagged")
 
@@ -161,19 +172,27 @@ def flagall(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
         # --- Flag End Channels of Each SPW (5% at each end) ---
         SPWtoflag = _build_spw_end_channels_string(numSpws, channels)
         if SPWtoflag:
-            flagging_commands.append(f"mode='manual' spw='{SPWtoflag}' reason='spw_ends'")
+            flagging_commands.append(
+                f"mode='manual' spw='{SPWtoflag}' reason='spw_ends'"
+            )
             cmdreason_list.append("spw_ends")
             task_logprint("Flagging end channels of each SPW (5% at each end)")
 
         # --- Flag End Channels at Edges of Basebands (10 channels) ---
-        SPWtoflag_bb = _build_baseband_edge_channels_string(low_spws, high_spws, channels)
+        SPWtoflag_bb = _build_baseband_edge_channels_string(
+            low_spws, high_spws, channels
+        )
         if SPWtoflag_bb:
-            flagging_commands.append(f"mode='manual' spw='{SPWtoflag_bb}' reason='baseband_edge_chans'")
+            flagging_commands.append(
+                f"mode='manual' spw='{SPWtoflag_bb}' reason='baseband_edge_chans'"
+            )
             cmdreason_list.append("baseband_edge_chans")
             task_logprint("Flagging edge channels at baseband boundaries (10 channels)")
 
         # --- Apply All Flags ---
-        task_logprint(f"Applying {len(flagging_commands)} deterministic flagging commands")
+        task_logprint(
+            f"Applying {len(flagging_commands)} deterministic flagging commands"
+        )
         flagdata(
             vis=ms_active,
             mode="list",
@@ -217,7 +236,9 @@ def flagall(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
         frac_flagged_on_source1 = 1.0 - (
             (start_total - final_flagged) / start_total if start_total > 0 else 1.0
         )
-        task_logprint(f"Approximate fraction of on-source data flagged = {frac_flagged_on_source1:.4f}")
+        task_logprint(
+            f"Approximate fraction of on-source data flagged = {frac_flagged_on_source1:.4f}"
+        )
 
         # --- QA Assessment ---
         if frac_flagged_on_source1 >= 0.3:
@@ -238,8 +259,10 @@ def flagall(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
 
     # Final logging
     task_logprint("Finished EVLA_pipe_flagall.py (Refactored)")
-    task_logprint(f"QA2 score: {format_qa_status(pipeline_context.get('QA2_flagall', 'Fail'))}")
-    time_list = runtiming("flagall", "end")
+    task_logprint(
+        f"QA2 score: {format_qa_status(pipeline_context.get('QA2_flagall', 'Fail'))}"
+    )
+    runtiming("flagall", "end")
 
     return pipeline_context
 
@@ -300,9 +323,7 @@ def _build_spw_end_channels_string(numSpws: int, channels: list) -> str:
 
 
 def _build_baseband_edge_channels_string(
-    low_spws: list,
-    high_spws: list,
-    channels: list
+    low_spws: list, high_spws: list, channels: list
 ) -> str:
     """
     Build SPW selection string for flagging baseband edge channels (10 channels).

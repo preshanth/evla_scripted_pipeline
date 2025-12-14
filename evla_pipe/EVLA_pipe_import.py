@@ -1,20 +1,22 @@
 # EVLA_pipe_import.py
 
-import os
 import shutil
-from pathlib import Path
+
 from casatasks import importasdm
+
 from evla_pipe.utils import (
-    runtiming,
-    logprint,
+    MEASUREMENT_SETS_DIR,
+    cleanup_import_files,
     format_qa_status,
     get_measurement_set_path,
-    cleanup_import_files,
-    MEASUREMENT_SETS_DIR
+    logprint,
+    runtiming,
 )
+
 
 def task_logprint(msg):
     logprint(msg, logfileout="logs/import.log")
+
 
 def import_data(pipeline_context):
     """
@@ -31,22 +33,27 @@ def import_data(pipeline_context):
     msname = pipeline_context.get("msname")
 
     if not SDM_name or not msname:
-        logprint("Error: Missing SDM_name or msname in pipeline context for import_data.", logfileout="logs/import.log")
+        logprint(
+            "Error: Missing SDM_name or msname in pipeline context for import_data.",
+            logfileout="logs/import.log",
+        )
         return {"QA2_import": "Fail"}
 
-    task_logprint = lambda msg: logprint(msg, logfileout="logs/import.log")
+    def task_logprint(msg):
+        return logprint(msg, logfileout="logs/import.log")
+
     task_logprint("*** Starting import_data ***")
     time_list = runtiming("import", "start")
     QA2_import = "Pass"
-    
+
     # Get organized paths
     ms_path = get_measurement_set_path(msname)
     flags_path = MEASUREMENT_SETS_DIR / "onlineFlags.txt"
-    
+
     # Clean up any existing files that might interfere
     task_logprint("Cleaning up existing files...")
     cleanup_import_files(SDM_name)
-    
+
     # Update context with organized paths
     pipeline_context["msname"] = str(ms_path)
     pipeline_context["ms_active"] = str(ms_path)
@@ -86,7 +93,7 @@ def import_data(pipeline_context):
     pipeline_context["QA2_import"] = QA2_import
     pipeline_context["time_list"] = time_list
     pipeline_context["onlineFlags_path"] = str(flags_path)
-    
+
     # Log the organized structure
     task_logprint(f"Measurement set: {ms_path}")
     task_logprint(f"Online flags: {flags_path}")
@@ -94,15 +101,16 @@ def import_data(pipeline_context):
 
     return pipeline_context
 
+
 def EVLA_pipe_import(pipeline_context):
     """
     Main entry point for EVLA_pipe_import pipeline step.
-    
+
     Parameters
     ----------
     pipeline_context : dict
         Pipeline context dictionary containing configuration and state
-        
+
     Returns
     -------
     dict
@@ -110,10 +118,10 @@ def EVLA_pipe_import(pipeline_context):
     """
     task_logprint("*** Starting EVLA_pipe_import.py ***")
     time_list = runtiming("import", "start")
-    
+
     # Extract variables from context
-    ms_active = pipeline_context.get("msname", "")
-    
+    pipeline_context.get("msname", "")
+
     try:
         # Call the main function
         result = import_data(pipeline_context)
@@ -122,13 +130,13 @@ def EVLA_pipe_import(pipeline_context):
     except Exception as e:
         task_logprint(f"Error in EVLA_pipe_import: {e}")
         QA2_score = "Fail"
-    
-    task_logprint(f"Finished EVLA_pipe_import.py")
+
+    task_logprint("Finished EVLA_pipe_import.py")
     task_logprint(f"QA2 score: {format_qa_status(QA2_score)}")
     time_list = runtiming("import", "end")
-    
+
     # Update context and return
     pipeline_context["QA2_import"] = QA2_score
     pipeline_context["time_list"] = time_list
-    
+
     return pipeline_context

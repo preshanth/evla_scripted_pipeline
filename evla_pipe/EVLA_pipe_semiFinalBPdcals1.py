@@ -7,19 +7,18 @@ procedural EVLA_pipe_semiFinalBPdcals1.py with a cleaner, modular approach.
 """
 
 import copy
-import os
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 
-from casatasks import gaincal, bandpass, applycal
+from casatasks import applycal, bandpass, gaincal
 from casatools import table
 
 from evla_pipe.utils import (
+    RefAntHeuristics,
+    format_qa_status,
+    getCalFlaggedSoln,
     logprint,
     runtiming,
-    RefAntHeuristics,
     semiFinaldelays,
-    getCalFlaggedSoln,
-    format_qa_status,
 )
 
 tb = table()
@@ -37,9 +36,7 @@ def task_logprint(msg: str) -> None:
     logprint(msg, logfileout="logs/semiFinalBPdcals1_cal.log")
 
 
-def find_reference_antenna(
-    pipeline_context: Dict[str, Any]
-) -> str:
+def find_reference_antenna(pipeline_context: Dict[str, Any]) -> str:
     """
     Find optimal reference antenna for calibration.
 
@@ -107,9 +104,13 @@ def compute_initial_delay_phase(
 
     task_logprint("Computing initial phase solutions on delay calibrator")
 
-    from evla_pipe.utils import get_caltable_path
     from casatasks import rmtables
-    semiFinaldelayinitialgain_table = get_caltable_path("semiFinaldelayinitialgain.g", "intermediate")
+
+    from evla_pipe.utils import get_caltable_path
+
+    semiFinaldelayinitialgain_table = get_caltable_path(
+        "semiFinaldelayinitialgain.g", "intermediate"
+    )
     rmtables(semiFinaldelayinitialgain_table)
 
     gaincal(
@@ -182,8 +183,10 @@ def compute_semi_final_delay(
 
     task_logprint("Computing semi-final delay calibration")
 
-    from evla_pipe.utils import get_caltable_path
     from casatasks import rmtables
+
+    from evla_pipe.utils import get_caltable_path
+
     delay_table = get_caltable_path("delay.k", "intermediate")
     rmtables(delay_table)
 
@@ -272,8 +275,10 @@ def compute_bp_initial_gain(
 
     task_logprint("Computing initial gain calibration on BP calibrator")
 
-    from evla_pipe.utils import get_caltable_path
     from casatasks import rmtables
+
+    from evla_pipe.utils import get_caltable_path
+
     BPdinitialgain_table = get_caltable_path("BPdinitialgain.g", "intermediate")
     delay_table = get_caltable_path("delay.k", "intermediate")
     rmtables(BPdinitialgain_table)
@@ -355,8 +360,10 @@ def compute_bandpass_calibration(
 
     task_logprint("Computing semi-final bandpass calibration")
 
-    from evla_pipe.utils import get_caltable_path
     from casatasks import rmtables
+
+    from evla_pipe.utils import get_caltable_path
+
     BPcal_table = get_caltable_path("BPcal.b", "intermediate")
     delay_table = get_caltable_path("delay.k", "intermediate")
     BPdinitialgain_table = get_caltable_path("BPdinitialgain.g", "intermediate")
@@ -464,6 +471,7 @@ def apply_calibrations_to_calibrators(
     task_logprint("Applying semi-final delay and BP calibrations to all calibrators")
 
     from evla_pipe.utils import get_caltable_path
+
     delay_table = get_caltable_path("delay.k", "intermediate")
     BPcal_table = get_caltable_path("BPcal.b", "intermediate")
 
@@ -598,7 +606,7 @@ def semifinalbpdcals1(
     - Overall: Fail if either fails, Partial if either partial, else Pass
     """
     task_logprint("*** Starting semi-final delay and BP calibrations ***")
-    time_list = runtiming("semiFinalBPdcals1", "start")
+    runtiming("semiFinalBPdcals1", "start")
 
     # Initialize QA flags
     QA2_semiFinalBPdcals1 = "Pass"
@@ -661,7 +669,7 @@ def semifinalbpdcals1(
         QA2_semiFinalBPdcals1 = "Fail"
 
     task_logprint(f"QA2 score: {format_qa_status(QA2_semiFinalBPdcals1)}")
-    time_list = runtiming("semiFinalBPdcals1", "end")
+    runtiming("semiFinalBPdcals1", "end")
 
     return pipeline_context
 

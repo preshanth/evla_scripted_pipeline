@@ -8,9 +8,11 @@ flag additional RFI that may have been missed in initial flagging passes.
 Replaces: EVLA_pipe_checkflag.py (legacy global scope version)
 """
 
-from typing import Dict, Any, Optional
+from typing import Any, Dict
+
 from casatasks import flagdata
-from evla_pipe.utils import logprint, runtiming, format_qa_status
+
+from evla_pipe.utils import format_qa_status, logprint, runtiming
 
 
 def task_logprint(msg: str, step: str = "checkflag") -> None:
@@ -73,14 +75,16 @@ def check_rfi_flagging(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     casatasks.flagdata : CASA task for flagging operations
     """
     task_logprint("*** Starting RFI Flagging Check ***")
-    time_list = runtiming("checkflag", "start")
+    runtiming("checkflag", "start")
 
     # Initialize QA status
     QA2_checkflag = "Pass"
 
     # Extract required parameters from context
     ms_active = pipeline_context.get("msname", "")
-    bandpass_field_select_string = pipeline_context.get("bandpass_field_select_string", "")
+    bandpass_field_select_string = pipeline_context.get(
+        "bandpass_field_select_string", ""
+    )
     delay_field_select_string = pipeline_context.get("delay_field_select_string", "")
     corrstring = pipeline_context.get("corrstring", "RR,LL")
     testgainscans = pipeline_context.get("testgainscans", "")

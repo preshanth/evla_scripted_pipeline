@@ -6,11 +6,11 @@ This module identifies and flags antennas/spws with poor bandpass solutions,
 typically caused by bad deformatter boards or RFI.
 """
 
-from typing import Dict, Any, List, Optional
-from pathlib import Path
+from typing import Any, Dict, List
 
 from casatasks import flagdata
-from evla_pipe.utils import logprint, runtiming, getBCalStatistics, format_qa_status
+
+from evla_pipe.utils import format_qa_status, getBCalStatistics, logprint, runtiming
 
 
 def task_logprint(msg: str) -> None:
@@ -72,7 +72,14 @@ def _flag_on_deformatters(
         Updated pipeline context
     """
     assert testq in ("amp", "phase", "real", "imag"), f"Invalid testq: {testq}"
-    assert tstat in ("amp", "phase", "real", "imag", "rat", "diff"), f"Invalid tstat: {tstat}"
+    assert tstat in (
+        "amp",
+        "phase",
+        "real",
+        "imag",
+        "rat",
+        "diff",
+    ), f"Invalid tstat: {tstat}"
 
     ms_active = pipeline_context.get("msname")
     startdate = pipeline_context.get("startdate", 0.0)
@@ -102,7 +109,9 @@ def _flag_on_deformatters(
     if doflagdata:
         task_logprint("Will flag data based on what we found")
     else:
-        task_logprint("Will NOT flag data based on what we found (startdate <= May 15, 2012)")
+        task_logprint(
+            "Will NOT flag data based on what we found (startdate <= May 15, 2012)"
+        )
 
     # Get bandpass calibration statistics
     try:
@@ -143,7 +152,9 @@ def _flag_on_deformatters(
                         if ispw in calBPstatresult["antspw"][iant]:
                             # Get statistics for this spw
                             for poln in calBPstatresult["antspw"][iant][ispw].keys():
-                                inner_stats = calBPstatresult["antspw"][iant][ispw][poln]["inner"]
+                                inner_stats = calBPstatresult["antspw"][iant][ispw][
+                                    poln
+                                ]["inner"]
                                 nbp = inner_stats["number"]
 
                                 if nbp > 0:
@@ -217,13 +228,17 @@ def _flag_on_deformatters(
         if len(badspwlist) > 0:
             spwstr = ",".join(str(ispw) for ispw in badspwlist)
             reastr = flagreason
-            flagstr = f"mode='manual' antenna='{antName}' spw='{spwstr}' reason='{reastr}'"
+            flagstr = (
+                f"mode='manual' antenna='{antName}' spw='{spwstr}' reason='{reastr}'"
+            )
             flaglist.append(flagstr)
 
         if doflagemptyspws and len(flaggedspwlist) > 0:
             spwstr = ",".join(str(ispw) for ispw in flaggedspwlist)
             reastr = "no_unflagged_solutions"
-            flagstr = f"mode='manual' antenna='{antName}' spw='{spwstr}' reason='{reastr}'"
+            flagstr = (
+                f"mode='manual' antenna='{antName}' spw='{spwstr}' reason='{reastr}'"
+            )
             extflaglist.append(flagstr)
 
     # Apply flags if any were found

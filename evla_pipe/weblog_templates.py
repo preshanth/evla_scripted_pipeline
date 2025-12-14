@@ -4,24 +4,24 @@ Modern weblog template system for EVLA pipeline.
 Pure Python implementation using string.Template - zero dependencies.
 """
 
-from string import Template
-from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from string import Template
+from typing import Any, Dict
 
 
 class WeblogTemplateEngine:
     """Simple template engine using Python's built-in string.Template."""
-    
+
     def __init__(self):
         self.templates = {}
         self._load_templates()
-    
+
     def _load_templates(self):
         """Load all template definitions."""
-        
+
         # Base HTML template with modern structure
-        self.templates['base'] = Template("""<!DOCTYPE html>
+        self.templates["base"] = Template(
+            """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -40,20 +40,24 @@ class WeblogTemplateEngine:
     </footer>
     <script>$js_content</script>
 </body>
-</html>""")
+</html>"""
+        )
 
         # Navigation template
-        self.templates['navigation'] = Template("""
+        self.templates["navigation"] = Template(
+            """
             <ul class="nav-tabs">
                 <li class="nav-item"><a href="index.html" class="nav-link $index_active">Summary</a></li>
                 <li class="nav-item"><a href="observation.html" class="nav-link $obs_active">Observation</a></li>
                 <li class="nav-item"><a href="calibration.html" class="nav-link $cal_active">Calibration</a></li>
                 <li class="nav-item"><a href="qa_report.html" class="nav-link $qa_active">QA Report</a></li>
                 <li class="nav-item"><a href="plots.html" class="nav-link $plots_active">Plots</a></li>
-            </ul>""")
+            </ul>"""
+        )
 
         # Summary page template
-        self.templates['summary'] = Template("""
+        self.templates["summary"] = Template(
+            """
             <section class="summary-section">
                 <h2>Pipeline Summary</h2>
                 <div class="summary-grid">
@@ -86,7 +90,7 @@ class WeblogTemplateEngine:
                     </div>
                 </div>
             </section>
-            
+
             <section class="quick-metrics">
                 <h2>Quick Metrics</h2>
                 <div class="metrics-grid">
@@ -107,10 +111,12 @@ class WeblogTemplateEngine:
                         <span class="metric-label">RMS Noise (μJy)</span>
                     </div>
                 </div>
-            </section>""")
+            </section>"""
+        )
 
         # QA Report template
-        self.templates['qa_report'] = Template("""
+        self.templates["qa_report"] = Template(
+            """
             <section class="qa-section">
                 <h2>Quality Assurance Report</h2>
                 <div class="qa-overview">
@@ -119,22 +125,24 @@ class WeblogTemplateEngine:
                         <span class="qa-description">Overall Pipeline Status</span>
                     </div>
                 </div>
-                
+
                 <div class="qa-steps">
                     <h3>Processing Steps Status</h3>
                     <div class="qa-grid">$qa_steps_content</div>
                 </div>
-                
+
                 $polarization_qa_section
-                
+
                 <div class="qa-notes">
                     <h3>Notes and Recommendations</h3>
                     <div class="note-content">$qa_notes</div>
                 </div>
-            </section>""")
+            </section>"""
+        )
 
         # QA step template
-        self.templates['qa_step'] = Template("""
+        self.templates["qa_step"] = Template(
+            """
             <div class="qa-step-card">
                 <div class="qa-step-header">
                     <h4>$step_name</h4>
@@ -144,10 +152,12 @@ class WeblogTemplateEngine:
                 <div class="qa-step-details">
                     <small>Duration: $duration | Log: <a href="logs/$log_file">$log_file</a></small>
                 </div>
-            </div>""")
+            </div>"""
+        )
 
         # Polarization QA section
-        self.templates['polarization_qa'] = Template("""
+        self.templates["polarization_qa"] = Template(
+            """
             <div class="polarization-qa">
                 <h3>Polarization Calibration Status</h3>
                 <div class="pol-qa-grid">
@@ -170,10 +180,13 @@ class WeblogTemplateEngine:
                         <p>Fractional polarization: $avg_pol_fraction%</p>
                     </div>
                 </div>
-            </div>""")
+            </div>"""
+        )
 
         # CSS styles
-        self.templates['css'] = """
+        self.templates[
+            "css"
+        ] = """
 /* Modern EVLA Pipeline Weblog Styles */
 :root {
     --primary-blue: #2c5282;
@@ -363,11 +376,11 @@ body {
     .nav-tabs {
         flex-direction: column;
     }
-    
+
     .content {
         padding: 1rem;
     }
-    
+
     .summary-grid,
     .metrics-grid,
     .qa-grid,
@@ -378,7 +391,9 @@ body {
 """
 
         # Basic JavaScript for interactivity
-        self.templates['js'] = """
+        self.templates[
+            "js"
+        ] = """
 // Modern EVLA Pipeline Weblog JavaScript
 document.addEventListener('DOMContentLoaded', function() {
     // Add active class to current page nav link
@@ -389,7 +404,7 @@ document.addEventListener('DOMContentLoaded', function() {
             link.classList.add('active');
         }
     });
-    
+
     // Add click animations to cards
     const cards = document.querySelectorAll('.summary-card, .qa-step-card, .pol-qa-card, .metric-card');
     cards.forEach(card => {
@@ -400,7 +415,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 150);
         });
     });
-    
+
     // Collapsible sections
     const collapsibles = document.querySelectorAll('[data-collapsible]');
     collapsibles.forEach(element => {
@@ -418,45 +433,50 @@ document.addEventListener('DOMContentLoaded', function() {
         """Render a template with the given context."""
         if template_name not in self.templates:
             raise ValueError(f"Template '{template_name}' not found")
-        
+
         template = self.templates[template_name]
         try:
             return template.safe_substitute(**context)
-        except KeyError as e:
+        except KeyError:
             # For missing variables, substitute with empty string
             return template.safe_substitute(**context)
 
-    def generate_full_page(self, page_title: str, content_template: str, 
-                          context: Dict[str, Any], active_nav: str = '') -> str:
+    def generate_full_page(
+        self,
+        page_title: str,
+        content_template: str,
+        context: Dict[str, Any],
+        active_nav: str = "",
+    ) -> str:
         """Generate a complete HTML page."""
-        
+
         # Prepare navigation context
         nav_context = {
-            'index_active': 'active' if active_nav == 'index' else '',
-            'obs_active': 'active' if active_nav == 'observation' else '',
-            'cal_active': 'active' if active_nav == 'calibration' else '',
-            'qa_active': 'active' if active_nav == 'qa' else '',
-            'plots_active': 'active' if active_nav == 'plots' else '',
+            "index_active": "active" if active_nav == "index" else "",
+            "obs_active": "active" if active_nav == "observation" else "",
+            "cal_active": "active" if active_nav == "calibration" else "",
+            "qa_active": "active" if active_nav == "qa" else "",
+            "plots_active": "active" if active_nav == "plots" else "",
         }
-        
+
         # Render navigation
-        navigation = self.render_template('navigation', nav_context)
-        
+        navigation = self.render_template("navigation", nav_context)
+
         # Render main content
         content = self.render_template(content_template, context)
-        
+
         # Render full page
         page_context = {
-            'title': page_title,
-            'navigation': navigation,
-            'content': content,
-            'css_content': self.templates['css'],
-            'js_content': self.templates['js'],
-            'pipeline_version': context.get('pipeline_version', 'Unknown'),
-            'generation_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')
+            "title": page_title,
+            "navigation": navigation,
+            "content": content,
+            "css_content": self.templates["css"],
+            "js_content": self.templates["js"],
+            "pipeline_version": context.get("pipeline_version", "Unknown"),
+            "generation_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC"),
         }
-        
-        return self.render_template('base', page_context)
+
+        return self.render_template("base", page_context)
 
 
 def create_weblog_generator():

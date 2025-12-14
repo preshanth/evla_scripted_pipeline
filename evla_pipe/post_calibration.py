@@ -8,10 +8,12 @@ calibrations to the target data:
 2. Statistical weighting - Calculate weights based on data scatter
 """
 
-from typing import Dict, Any
+from typing import Any, Dict
 
 from casatasks import flagdata, flagmanager, statwt
-from evla_pipe.utils import runtiming, logprint, format_qa_status, get_log_path
+
+from evla_pipe.utils import format_qa_status, get_log_path, logprint, runtiming
+
 
 def task_logprint(msg: str):
     """Centralized logging for post-calibration operations."""
@@ -134,7 +136,9 @@ def flag_target_data(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
             (start_total - final_flags["flagged"]) / init_on_source_vis
         )
 
-        task_logprint(f"Final fraction of on-source data flagged = {frac_flagged_on_source2:.4f}")
+        task_logprint(
+            f"Final fraction of on-source data flagged = {frac_flagged_on_source2:.4f}"
+        )
 
         # Determine QA score based on flagging fraction
         if frac_flagged_on_source2 >= 0.6:
@@ -155,7 +159,7 @@ def flag_target_data(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
         QA2_score = "Fail"
         pipeline_context["error_message"] = str(e)
 
-    task_logprint(f"Finished flag_target_data")
+    task_logprint("Finished flag_target_data")
     task_logprint(f"QA2 score: {format_qa_status(QA2_score)}")
     time_list = runtiming("targetflag", "end")
 

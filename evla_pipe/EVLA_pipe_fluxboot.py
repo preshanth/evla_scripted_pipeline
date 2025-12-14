@@ -7,12 +7,20 @@ fitted values.
 """
 
 import os
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List
+
 import numpy as np
 import scipy as sp
-from casatasks import fluxscale, casalog, setjy, rmtables
+from casatasks import casalog, fluxscale, rmtables, setjy
+
 from evla_pipe.plotting import plotms
-from evla_pipe.utils import MAINLOG, logprint, runtiming, find_EVLA_band, format_qa_status
+from evla_pipe.utils import (
+    MAINLOG,
+    find_EVLA_band,
+    format_qa_status,
+    logprint,
+    runtiming,
+)
 
 
 def task_logprint(msg: str) -> None:
@@ -46,7 +54,9 @@ def _fitfunc(p: List[float], x: np.ndarray) -> np.ndarray:
     return p[0] + p[1] * x
 
 
-def _errfunc(p: List[float], x: np.ndarray, y: np.ndarray, err: np.ndarray) -> np.ndarray:
+def _errfunc(
+    p: List[float], x: np.ndarray, y: np.ndarray, err: np.ndarray
+) -> np.ndarray:
     """
     Error function for least-squares fitting.
 
@@ -70,8 +80,7 @@ def _errfunc(p: List[float], x: np.ndarray, y: np.ndarray, err: np.ndarray) -> n
 
 
 def _bootstrap_flux(
-    pipeline_context: Dict[str, Any],
-    flux_field_select_string: str
+    pipeline_context: Dict[str, Any], flux_field_select_string: str
 ) -> Dict[str, Any]:
     """
     Perform flux density bootstrapping using fluxscale.
@@ -131,8 +140,7 @@ def _bootstrap_flux(
 
 
 def _fit_power_law(
-    fluxscale_result: Dict[str, Any],
-    center_frequencies: Dict[int, float]
+    fluxscale_result: Dict[str, Any], center_frequencies: Dict[int, float]
 ) -> List[List[Any]]:
     """
     Fit a power law to the bootstrapped flux densities.
@@ -193,10 +201,7 @@ def _fit_power_law(
     # Fit power law for each source and band
     for source in np.unique(sources):
         indices = np.argwhere(np.array(sources) == source).squeeze(axis=1)
-        bands = [
-            find_EVLA_band(center_frequencies.get(spws[i], 0.0))
-            for i in indices
-        ]
+        bands = [find_EVLA_band(center_frequencies.get(spws[i], 0.0)) for i in indices]
 
         for band in np.unique(bands):
             lfreqs = []
@@ -246,9 +251,7 @@ def _fit_power_law(
                     # Compute SNR of spectral index
                     summed_error = np.sum((_fitfunc([aa, bb], alfreqs) - alfds) ** 2)
                     residual_variance = (
-                        summed_error / (len(alfds) - 2)
-                        if len(alfds) > 2
-                        else 0.0
+                        summed_error / (len(alfds) - 2) if len(alfds) > 2 else 0.0
                     )
                     SNR = (
                         np.abs(bb) / np.sqrt(covar[1][1] * residual_variance)
@@ -280,9 +283,7 @@ def _fit_power_law(
                 err_exp = 10 ** lfds[ii]
                 SS = fluxdensity * (flux_exp / reffreq) ** spix
                 fderr = (
-                    lerrs[ii] * err_exp / np.log10(np.e)
-                    if np.log10(np.e) != 0
-                    else 0.0
+                    lerrs[ii] * err_exp / np.log10(np.e) if np.log10(np.e) != 0 else 0.0
                 )
                 task_logprint(
                     f"    {flux_exp:.3f} {10**lfds[ii]:.3f} {fderr:.3f} {SS:.3f}"
@@ -292,9 +293,7 @@ def _fit_power_law(
 
 
 def _set_fitted_flux(
-    pipeline_context: Dict[str, Any],
-    fitting_results: List[List[Any]],
-    scratch: bool
+    pipeline_context: Dict[str, Any], fitting_results: List[List[Any]], scratch: bool
 ) -> str:
     """
     Set the power-law fit in the model column using setjy.

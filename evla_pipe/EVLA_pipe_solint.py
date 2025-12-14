@@ -5,12 +5,13 @@ This module determines the optimal solution interval for scan-average equivalent
 calibration by analyzing phase calibrator scan durations.
 """
 
-from typing import Dict, Any, List, Tuple
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
+
 from casatasks import rmtables, split
 from casatools import ms as mstool
-from pathlib import Path
 
-from evla_pipe.utils import logprint, runtiming, format_qa_status
+from evla_pipe.utils import format_qa_status, logprint, runtiming
 
 
 def task_logprint(msg: str) -> None:
@@ -26,9 +27,7 @@ def task_logprint(msg: str) -> None:
 
 
 def determine_long_solint(
-    pipeline_context: Dict[str, Any],
-    channels: List[int],
-    phase_scan_list: List[int]
+    pipeline_context: Dict[str, Any], channels: List[int], phase_scan_list: List[int]
 ) -> Tuple[str, str]:
     """
     Determine the solution interval for scan-average equivalent calibration.
@@ -57,7 +56,9 @@ def determine_long_solint(
     Sets gain_solint2 to max(scan_durations) * 1.01 with 30s default fallback.
     """
     ms_active = pipeline_context.get("msname", "")
-    calibrator_scan_select_string = pipeline_context.get("calibrator_scan_select_string", "")
+    calibrator_scan_select_string = pipeline_context.get(
+        "calibrator_scan_select_string", ""
+    )
 
     if not ms_active:
         raise ValueError("msname not found in pipeline_context")
@@ -176,7 +177,9 @@ def determine_long_solint(
 
     gain_solint2 = f"{longsolint:.2f}s"
 
-    task_logprint(f"Long solution interval (gain_solint2) determined as: {gain_solint2}")
+    task_logprint(
+        f"Long solution interval (gain_solint2) determined as: {gain_solint2}"
+    )
     task_logprint(f"Keeping {output_ms} for subsequent calibration steps")
 
     return gain_solint2, output_ms
@@ -251,17 +254,21 @@ def solint(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     try:
         # Determine long solution interval
         if not phase_scan_list:
-            task_logprint("WARNING: phase_scan_list is empty, using default 30s solution interval")
+            task_logprint(
+                "WARNING: phase_scan_list is empty, using default 30s solution interval"
+            )
             gain_solint2 = "30.0s"
             # Still need to create calibrators.ms for later steps
             calibrators_ms = "calibrators.ms"
 
             # Create calibrators.ms even without phase scans
             ms_active = pipeline_context.get("msname", "")
-            calibrator_scan_select_string = pipeline_context.get("calibrator_scan_select_string", "")
+            calibrator_scan_select_string = pipeline_context.get(
+                "calibrator_scan_select_string", ""
+            )
 
             if calibrator_scan_select_string:
-                from casatasks import split, rmtables
+                from casatasks import rmtables, split
 
                 rmtables(calibrators_ms)
                 width = int(max(channels)) if channels else 1
@@ -286,12 +293,12 @@ def solint(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
                 )
                 task_logprint(f"Created {calibrators_ms} with all calibrator scans")
             else:
-                task_logprint("WARNING: No calibrator scans found, cannot create calibrators.ms")
+                task_logprint(
+                    "WARNING: No calibrator scans found, cannot create calibrators.ms"
+                )
         else:
             gain_solint2, calibrators_ms = determine_long_solint(
-                pipeline_context,
-                channels,
-                phase_scan_list
+                pipeline_context, channels, phase_scan_list
             )
 
         # Update context with results

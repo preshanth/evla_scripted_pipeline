@@ -6,13 +6,20 @@ This module sets flux density models for standard primary calibrators
 using the Perley-Butler 2017 standard, with full polarization support.
 """
 
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Any, Dict, List
+
 from casatasks import setjy
 from casatools import measures as mstool
 
-from evla_pipe.utils import runtiming, logprint, find_EVLA_band, _extract_position_tuples, find_standards, format_qa_status
 from evla_pipe.pol_setjy_utils import integrate_polarization_setjy
-
+from evla_pipe.utils import (
+    _extract_position_tuples,
+    find_EVLA_band,
+    find_standards,
+    format_qa_status,
+    logprint,
+    runtiming,
+)
 
 # Module-level CASA tool instances
 me = mstool()
@@ -31,6 +38,7 @@ def task_logprint(msg: str) -> None:
         Message to log
     """
     logprint(msg, logfileout="logs/calprep.log")
+
 
 '''
 def _extract_position_tuples(field_positions: List[Dict[str, Any]]) -> List[Tuple[float, float]]:
@@ -59,6 +67,7 @@ def _extract_position_tuples(field_positions: List[Dict[str, Any]]) -> List[Tupl
     return positions
 '''
 
+
 def _set_polarization_models(
     ms_active: str,
     field: int,
@@ -66,7 +75,7 @@ def _set_polarization_models(
     spws: List[int],
     center_frequencies: List[float],
     evla_band: str,
-    scratch: bool
+    scratch: bool,
 ) -> bool:
     """
     Set full polarization models for a calibrator field.
@@ -122,7 +131,7 @@ def _set_polarization_models(
             obs_date=None,  # Will use 2019 data by default
             use_model_image=model_image,
             standard="Perley-Butler 2017",
-            usescratch=scratch
+            usescratch=scratch,
         )
 
         task_logprint(f"Successfully set full polarization models for {field_name}")
@@ -147,9 +156,13 @@ def _set_polarization_models(
                     listmodels=False,
                     usescratch=scratch,
                 )
-                task_logprint(f"Fallback intensity-only setjy succeeded for field {field} spw {spw}")
+                task_logprint(
+                    f"Fallback intensity-only setjy succeeded for field {field} spw {spw}"
+                )
             except Exception as fallback_e:
-                task_logprint(f"Fallback setjy also failed for field {field} spw {spw}: {fallback_e}")
+                task_logprint(
+                    f"Fallback setjy also failed for field {field} spw {spw}: {fallback_e}"
+                )
                 success = False
 
         return success
@@ -194,7 +207,7 @@ def calprep(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     setting models for standard calibrators.
     """
     task_logprint("*** Starting EVLA_pipe_calprep.py (Refactored) ***")
-    time_list = runtiming("calprep", "start")
+    runtiming("calprep", "start")
 
     # Initialize QA status
     QA2_calprep = "Pass"
@@ -208,11 +221,15 @@ def calprep(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     scratch = True  # Use scratch columns for model data
 
     # Debug logging
-    task_logprint(f"Debug: field_positions type: {type(field_positions)}, "
-                  f"length: {len(field_positions) if field_positions else 'None'}")
+    task_logprint(
+        f"Debug: field_positions type: {type(field_positions)}, "
+        f"length: {len(field_positions) if field_positions else 'None'}"
+    )
     task_logprint(f"Debug: field_spws type: {type(field_spws)}, value: {field_spws}")
-    task_logprint(f"Debug: center_frequencies type: {type(center_frequencies)}, "
-                  f"length: {len(center_frequencies) if center_frequencies else 'None'}")
+    task_logprint(
+        f"Debug: center_frequencies type: {type(center_frequencies)}, "
+        f"length: {len(center_frequencies) if center_frequencies else 'None'}"
+    )
 
     # Validate required context keys
     if ms_active is None:
@@ -254,14 +271,18 @@ def calprep(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
         standards_found = any(standard_source_fields)
 
         if not standards_found:
-            error_msg = ("ERROR: No standard flux density calibrator observed, "
-                        "flux density scale will be arbitrary.")
+            error_msg = (
+                "ERROR: No standard flux density calibrator observed, "
+                "flux density scale will be arbitrary."
+            )
             task_logprint(error_msg)
             QA2_calprep = "Fail"
             pipeline_context["calprep_error_message"] = error_msg
         else:
-            task_logprint(f"Found standard calibrators: "
-                         f"{sum(len(fields) for fields in standard_source_fields)} field(s)")
+            task_logprint(
+                f"Found standard calibrators: "
+                f"{sum(len(fields) for fields in standard_source_fields)} field(s)"
+            )
 
             # Process each standard calibrator
             for source_idx, fields in enumerate(standard_source_fields):
@@ -269,14 +290,22 @@ def calprep(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
 
                 for field in fields:
                     if field >= len(field_spws):
-                        task_logprint(f"WARNING: field_spws index {field} out of range.")
+                        task_logprint(
+                            f"WARNING: field_spws index {field} out of range."
+                        )
                         continue
 
                     spws = field_spws[field]
 
                     # Handle numpy arrays and lists - check length explicitly
-                    if spws is None or len(spws) == 0 or spws[0] >= len(center_frequencies):
-                        task_logprint(f"WARNING: No spws or invalid spw indices for field {field}")
+                    if (
+                        spws is None
+                        or len(spws) == 0
+                        or spws[0] >= len(center_frequencies)
+                    ):
+                        task_logprint(
+                            f"WARNING: No spws or invalid spw indices for field {field}"
+                        )
                         continue
 
                     # Determine EVLA band from first SPW frequency
@@ -291,11 +320,13 @@ def calprep(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
                         spws=spws,
                         center_frequencies=center_frequencies,
                         evla_band=evla_band,
-                        scratch=scratch
+                        scratch=scratch,
                     )
 
                     if not success:
-                        task_logprint(f"WARNING: Failed to set models for field {field} ({field_name})")
+                        task_logprint(
+                            f"WARNING: Failed to set models for field {field} ({field_name})"
+                        )
 
         task_logprint("Finished setting models for known calibrators")
 
@@ -313,7 +344,7 @@ def calprep(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     task_logprint("Finished EVLA_pipe_calprep.py (Refactored)")
     task_logprint(f"QA2 score: {format_qa_status(QA2_calprep)}")
 
-    time_list = runtiming("calprep", "end")
+    runtiming("calprep", "end")
 
     return pipeline_context
 

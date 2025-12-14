@@ -2,36 +2,36 @@
 Move relevant plots and tables after calibration is complete.
 """
 
-import os
-import stat
-import glob
-import shutil
 import copy
-import pickle
-from pathlib import Path
+import glob
+import os
+import shutil
 from time import gmtime, strftime
 
 from evla_pipe import __version_str__
 from evla_pipe.utils import (
+    CALTABLES_DIR,
+    PLOTS_DIR,
+    WEBLOG_DIR,
+    format_qa_status,
+    get_log_path,
     logprint,
     runtiming,
-    get_log_path,
-    CALTABLES_DIR,
-    WEBLOG_DIR,
-    PLOTS_DIR,
-    path_exists,
-    format_qa_status,
 )
+
 
 def task_logprint(msg):
     logprint(msg, logfileout=str(get_log_path("filecollect.log")))
 
+
 # ... rest of your code ...
+
 
 def EVLA_pipe_filecollect(pipeline_context):
     """
     Main entry point for EVLA_pipe_filecollect pipeline step.
     """
+
     def task_logprint(msg):
         logprint(msg, logfileout="logs/filecollect.log")
 
@@ -82,8 +82,13 @@ def EVLA_pipe_filecollect(pipeline_context):
         # Move calibration tables into caltables_dir
         cal_files = copy.copy(priorcals)
         for caltable in (
-                "switched_power.g", "fluxgaincal.g", "finaldelay.k", "finalBPcal.b",
-                "averagephasegain.g", "finalampgaincal.g", "finalphasegaincal.g"
+            "switched_power.g",
+            "fluxgaincal.g",
+            "finaldelay.k",
+            "finalBPcal.b",
+            "averagephasegain.g",
+            "finalampgaincal.g",
+            "finalphasegaincal.g",
         ):
             cal_files.append(caltable)
 
@@ -97,13 +102,13 @@ def EVLA_pipe_filecollect(pipeline_context):
 
         # Create timing profile
         gmt_time = strftime("%a, %d %b %Y %H:%M:%S +0000", gmtime())
-        file_time = strftime("%d%b%Y_%H%M%Sgmt", gmtime())
+        strftime("%d%b%Y_%H%M%Sgmt", gmtime())
 
         # compute size of ms directory
         ms_size = 0
         bytes_in_gb = 1024.0**3
         try:
-            for path, dirs, files in os.walk(ms_active):
+            for path, _dirs, files in os.walk(ms_active):
                 for filen in files:
                     filename = os.path.join(path, filen)
                     ms_size += os.path.getsize(filename)
@@ -126,7 +131,7 @@ def EVLA_pipe_filecollect(pipeline_context):
         task_logprint(f"Error in EVLA_pipe_filecollect: {e}")
         QA2_score = "Fail"
 
-    task_logprint(f"Finished EVLA_pipe_filecollect.py")
+    task_logprint("Finished EVLA_pipe_filecollect.py")
     task_logprint(f"QA2 score: {format_qa_status(QA2_score)}")
     time_list = runtiming("filecollect", "end")
 

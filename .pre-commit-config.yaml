@@ -1,0 +1,28 @@
+repos:
+  - repo: local
+    hooks:
+      - id: black
+        name: black (warn-only)
+        # Run black but do not fail the commit; print a warning if it fails
+        entry: bash -c 'black "$@" || (echo "[pre-commit warning] black failed; continuing"; exit 0)' --
+        language: system
+        types: [python]
+      - id: isort
+        name: isort (warn-only)
+        entry: bash -c 'isort "$@" || (echo "[pre-commit warning] isort failed; continuing"; exit 0)' --
+        language: system
+        types: [python]
+      - id: ruff-fix
+        name: ruff (fix, warn-only)
+        entry: bash -c 'ruff check --fix "$@" || (echo "[pre-commit warning] ruff --fix failed; continuing"; exit 0)' --
+        language: system
+        types: [python]
+      - id: ruff
+        name: ruff (lint, warn-only)
+        entry: bash -c 'ruff check "$@" || (echo "[pre-commit warning] ruff lint failed; continuing"; exit 0)' --
+        language: system
+        types: [python]
+      - id: end-of-file-fixer
+        name: end-of-file fixer
+        entry: bash -c 'true' # noop placeholder to keep local repo valid
+        language: system

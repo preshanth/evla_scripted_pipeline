@@ -2,11 +2,9 @@
 
 import os
 import re
-import sys
 import warnings
 from glob import glob
 
-import pytest
 import numpy as np
 
 with warnings.catch_warnings() as w:
@@ -14,42 +12,42 @@ with warnings.catch_warnings() as w:
     # importing the ABCs from 'collections' instead of 'collections.abc'.
     warnings.simplefilter("ignore", category=DeprecationWarning)
     from casatools import table
+
     tb = table()
 
 from evla_pipe import utils
 
-
 SDM_NAME = "test.sdm"
 MS_NAME = f"{SDM_NAME}.ms"
 INITIAL_CAL_TABLES = [
-        "BPcal.b",
-        "BPinitialgain.g",
-        "delay.k",
-        "finalBPinitialgain.g",
-        "finaldelayinitialgain.g",
-        "fluxgaincalFcal.g",
-        "fluxphaseshortgaincal.g",
-        "phaseshortgaincal.g",
-        "semiFinaldelayinitialgain.g",
-        "testBPcal.b",
-        "testBPdinitialgain.g",
-        "testdelayinitialgain.g",
-        "testdelay.k",
-        "testgaincal.g",
+    "BPcal.b",
+    "BPinitialgain.g",
+    "delay.k",
+    "finalBPinitialgain.g",
+    "finaldelayinitialgain.g",
+    "fluxgaincalFcal.g",
+    "fluxphaseshortgaincal.g",
+    "phaseshortgaincal.g",
+    "semiFinaldelayinitialgain.g",
+    "testBPcal.b",
+    "testBPdinitialgain.g",
+    "testdelayinitialgain.g",
+    "testdelay.k",
+    "testgaincal.g",
 ]
 FINAL_CAL_TABLES_DIR = "final_caltables"
 FINAL_CAL_TABLES = [
-        "antposcal.p",
-        "averagephasegain.g",
-        "finalampgaincal.g",
-        "finalBPcal.b",
-        "finaldelay.k",
-        "finalphasegaincal.g",
-        "fluxgaincal.g",
-        "gain_curves.g",
-        "opacities.g",
-        "requantizergains.g",
-        "switched_power.g",
+    "antposcal.p",
+    "averagephasegain.g",
+    "finalampgaincal.g",
+    "finalBPcal.b",
+    "finaldelay.k",
+    "finalphasegaincal.g",
+    "fluxgaincal.g",
+    "gain_curves.g",
+    "opacities.g",
+    "requantizergains.g",
+    "switched_power.g",
 ]
 
 
@@ -84,7 +82,7 @@ def test_qa2_summary():
     f_onsource_flagged = float(m.group(1))
     assert np.isclose(f_onsource_flagged, 0.334411407163, rtol=2e-4)
     # QA2 score
-    m = re.search(f"Overall QA2 score: (Fail|Pass)", text)
+    m = re.search("Overall QA2 score: (Fail|Pass)", text)
     assert m.group(1) == "Fail"
     # No missing scans
     assert re.search(r"There are no missing scans", text) is not None
@@ -104,7 +102,7 @@ def test_qa2_scores():
         text = f.read()
     lines = text.split("\n")
     assert sum("Pass" in l for l in lines) == 21
-    assert sum("Fail" in l for l in lines) ==  2
+    assert sum("Fail" in l for l in lines) == 2
 
 
 def test_fluxboot():
@@ -114,24 +112,26 @@ def test_fluxboot():
         text = f.read().strip()
     reference_values = [
         # spw,   freq,     fit,        err,     snr, nfit
-        [0, 1.557e+09, 1.04541, 0.00765684, 136.533, 52],
-        [1, 1.685e+09, 1.06848, 0.00699644, 152.717, 52],
-        [2, 1.813e+09, 1.07251, 0.00764253, 140.335, 52],
-        [3, 1.941e+09, 1.07328, 0.00945151, 113.556, 52],
-        [4, 1.057e+09, 1.16963, 0.00564467, 207.209, 52],
-        [5, 1.185e+09, 1.11052, 0.00598697, 185.490, 52],
-        [6, 1.313e+09, 1.12102, 0.00582628, 192.408, 52],
-        [7, 1.441e+09, 1.11251, 0.00621539, 178.993, 52],
+        [0, 1.557e09, 1.04541, 0.00765684, 136.533, 52],
+        [1, 1.685e09, 1.06848, 0.00699644, 152.717, 52],
+        [2, 1.813e09, 1.07251, 0.00764253, 140.335, 52],
+        [3, 1.941e09, 1.07328, 0.00945151, 113.556, 52],
+        [4, 1.057e09, 1.16963, 0.00564467, 207.209, 52],
+        [5, 1.185e09, 1.11052, 0.00598697, 185.490, 52],
+        [6, 1.313e09, 1.12102, 0.00582628, 192.408, 52],
+        [7, 1.441e09, 1.11251, 0.00621539, 178.993, 52],
     ]
     lines = text.split("\n")
     print(lines[5].split("\t"))
     comments = [l.split("\t")[3] for l in lines]
     flux_entries = [c for c in comments if c.startswith("Flux density for")]
-    for entry, ref_vals in zip(flux_entries, reference_values):
-        m = re.search(r".+SpW=(\d+) \(freq=([e\.\d]+) Hz\) is: ([\.\d]+) \+/- ([\.\d]+) \(SNR = ([\.\d]+), N = (\d+)\)")
+    for _entry, ref_vals in zip(flux_entries, reference_values):
+        m = re.search(
+            r".+SpW=(\d+) \(freq=([e\.\d]+) Hz\) is: ([\.\d]+) \+/- ([\.\d]+) \(SNR = ([\.\d]+), N = (\d+)\)"
+        )
         for i in range(6):
-            ref_val  = float(ref_vals[i])
-            test_val = float(m.group(i+1))
+            ref_val = float(ref_vals[i])
+            test_val = float(m.group(i + 1))
             assert np.isclose(test_val, ref_val)
 
 
@@ -180,11 +180,10 @@ def test_final_amp():
     finally:
         tb.close()
     again = np.abs(gain)
-    rtol = 5e-2
     assert np.isclose(np.median(again), 0.997727870, rtol=5e-2)
-    assert np.isclose(np.std(again),    0.020725715, rtol=1.0)
-    assert np.isclose(np.max(again),    1.080380085, rtol=1.0)
-    assert np.isclose(np.min(again),    0.813663491, rtol=1.0)
+    assert np.isclose(np.std(again), 0.020725715, rtol=1.0)
+    assert np.isclose(np.max(again), 1.080380085, rtol=1.0)
+    assert np.isclose(np.min(again), 0.813663491, rtol=1.0)
 
 
 def test_find_band():
@@ -204,8 +203,8 @@ def test_find_standards():
         tb.close()
     assert field_positions.shape == (2, 1, 3)
     positions = field_positions.squeeze().transpose()
-    assert np.allclose(positions[:,0], [1.49488453, 1.99893968, 2.27802515])
-    assert np.allclose(positions[:,1], [0.87008170, 0.30901538, 0.32453906])
+    assert np.allclose(positions[:, 0], [1.49488453, 1.99893968, 2.27802515])
+    assert np.allclose(positions[:, 1], [0.87008170, 0.30901538, 0.32453906])
     standards = utils.find_standards(positions)
     assert len(standards) == 4
     assert standards == [[], [], [0], []]  # Field 0 is 3C147
@@ -227,8 +226,32 @@ def test_spwforfield():
 
 def test_refantheuristics():
     ant_ids = [
-            13, 9, 14, 23, 27, 11, 2, 15, 24, 17, 10, 12, 19, 4, 6, 3, 26,
-            20, 25, 28, 21, 1, 16, 8, 18, 7,
+        13,
+        9,
+        14,
+        23,
+        27,
+        11,
+        2,
+        15,
+        24,
+        17,
+        10,
+        12,
+        19,
+        4,
+        6,
+        3,
+        26,
+        20,
+        25,
+        28,
+        21,
+        1,
+        16,
+        8,
+        18,
+        7,
     ]
     ant_names = [f"ea{i:0>2d}" for i in ant_ids]
     rah = utils.RefAntHeuristics(MS_NAME, field="0", geometry=True, flagging=True)
@@ -239,9 +262,9 @@ def test_refantheuristics():
 def test_refantgeometry():
     rag = utils.RefAntGeometry(MS_NAME)
     test_scores = rag.calc_score()
-    assert np.isclose(test_scores["ea01"],  4.5032442956782326)
+    assert np.isclose(test_scores["ea01"], 4.5032442956782326)
     assert np.isclose(test_scores["ea02"], 22.662768358818941)
-    assert np.isclose(test_scores["ea07"],  0.0)
+    assert np.isclose(test_scores["ea07"], 0.0)
 
 
 def test_refantflagging():
@@ -284,7 +307,8 @@ def test_getbcalstats():
     assert len(results) == 5
     assert len(results["antspw"]) == 26
     assert len(results["antDict"]) == 26
-    assert np.isclose(results["antband"][25]["EVLA_L"]["A0C0"]["all"]["amp"]["mean"], 0.98601957127590445)
+    assert np.isclose(
+        results["antband"][25]["EVLA_L"]["A0C0"]["all"]["amp"]["mean"],
+        0.98601957127590445,
+    )
     assert results["rxBasebandDict"]["EVLA_L"]["A0C0"] == [0, 1, 2, 3]
-
-

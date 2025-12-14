@@ -3,29 +3,33 @@ Make final *uv* plots on all sources.
 """
 
 from evla_pipe.plotting import plotms
-from evla_pipe.utils import logprint, runtiming, format_qa_status
+from evla_pipe.utils import format_qa_status, logprint, runtiming
+
 
 def task_logprint(msg):
     logprint(msg, logfileout="logs/plotsummary.log")
 
+
 def create_final_plots(pipeline_context):
     """
     Create final UV plots on all sources.
-    
+
     Args:
         pipeline_context (dict): Dictionary containing pipeline parameters.
     """
     task_logprint("*** Starting create_final_plots ***")
-    time_list = runtiming("plotsummary", "start")
+    runtiming("plotsummary", "start")
     QA2_plotsummary = "Pass"
-    
+
     # Extract variables from context
     ms_active = pipeline_context.get("msname", "")
-    calibrator_field_select_string = pipeline_context.get("calibrator_field_select_string", "")
+    calibrator_field_select_string = pipeline_context.get(
+        "calibrator_field_select_string", ""
+    )
     corrstring = pipeline_context.get("corrstring", "RR,LL")
     channels = pipeline_context.get("channels", [64])  # Default channel count
     target_field_select_string = pipeline_context.get("target_field_select_string", "")
-    
+
     task_logprint("Making final UV plots.")
 
     try:
@@ -150,25 +154,26 @@ def create_final_plots(pipeline_context):
             )
 
         task_logprint("Finished creating final plots")
-        
+
     except Exception as e:
         task_logprint(f"Error creating plots: {e}")
         QA2_plotsummary = "Fail"
 
     task_logprint(f"QA2 score: {format_qa_status(QA2_plotsummary)}")
-    time_list = runtiming("plotsummary", "end")
-    
+    runtiming("plotsummary", "end")
+
     return QA2_plotsummary
+
 
 def EVLA_pipe_plotsummary(pipeline_context):
     """
     Main entry point for EVLA_pipe_plotsummary pipeline step.
-    
+
     Parameters
     ----------
     pipeline_context : dict
         Pipeline context dictionary containing configuration and state
-        
+
     Returns
     -------
     dict
@@ -176,10 +181,10 @@ def EVLA_pipe_plotsummary(pipeline_context):
     """
     task_logprint("*** Starting EVLA_pipe_plotsummary.py ***")
     time_list = runtiming("plotsummary", "start")
-    
+
     # Extract variables from context
-    ms_active = pipeline_context.get("msname", "")
-    
+    pipeline_context.get("msname", "")
+
     try:
         # Call the main function if it exists
         if "create_final_plots" in globals():
@@ -191,13 +196,13 @@ def EVLA_pipe_plotsummary(pipeline_context):
     except Exception as e:
         task_logprint(f"Error in EVLA_pipe_plotsummary: {e}")
         QA2_score = "Fail"
-    
-    task_logprint(f"Finished EVLA_pipe_plotsummary.py")
+
+    task_logprint("Finished EVLA_pipe_plotsummary.py")
     task_logprint(f"QA2 score: {format_qa_status(QA2_score)}")
     time_list = runtiming("plotsummary", "end")
-    
+
     # Update context and return
     pipeline_context["QA2_plotsummary"] = QA2_score
     pipeline_context["time_list"] = time_list
-    
+
     return pipeline_context

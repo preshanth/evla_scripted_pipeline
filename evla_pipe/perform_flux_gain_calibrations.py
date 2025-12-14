@@ -1,16 +1,17 @@
 # perform_flux_gain_calibrations.py
 
 from casatasks import gaincal
-from evla_pipe.utils import (
-        runtiming,
-        logprint,
-        RefAntHeuristics,
-)
+
+from evla_pipe.utils import RefAntHeuristics, logprint, runtiming
+
 
 def task_logprint(msg):
     logprint(msg, logfileout="logs/fluxgains_gaincal.log")
 
-def perform_flux_gain_calibrations(pipeline_context, new_gain_solint1, gain_solint2, minBL_for_cal):
+
+def perform_flux_gain_calibrations(
+    pipeline_context, new_gain_solint1, gain_solint2, minBL_for_cal
+):
     """
     Make gain tables for flux density bootstrapping.
 
@@ -23,15 +24,22 @@ def perform_flux_gain_calibrations(pipeline_context, new_gain_solint1, gain_soli
     task_logprint("*** Starting perform_flux_gain_calibrations.py ***")
     runtiming("fluxgains_gaincal", "start")
 
-    calibrators_ms = pipeline_context.get("msname", "calibrators.ms") # Default to calibrators.ms
-    calibrator_field_select_string = pipeline_context.get("calibrator_field_select_string", "")
+    calibrators_ms = pipeline_context.get(
+        "msname", "calibrators.ms"
+    )  # Default to calibrators.ms
+    calibrator_field_select_string = pipeline_context.get(
+        "calibrator_field_select_string", ""
+    )
 
     task_logprint(f"Short solint = {new_gain_solint1}")
     task_logprint(f"Long solint = {gain_solint2}")
     task_logprint("\nFinding a reference antenna.\n")
 
     findrefant = RefAntHeuristics(
-        vis=calibrators_ms, field=calibrator_field_select_string, geometry=True, flagging=True
+        vis=calibrators_ms,
+        field=calibrator_field_select_string,
+        geometry=True,
+        flagging=True,
     )
     RefAntOutput = findrefant.calculate()
     refAnt = ",".join(str(RefAntOutput[i]) for i in range(min(4, len(RefAntOutput))))

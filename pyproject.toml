@@ -44,6 +44,15 @@ casa = [
     "casaplotms >= 1.2.8",
 ]
 
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+
+[tool.ruff]
+line-length = 88
+fix = true
+select = ["E", "F", "W", "I", "C", "B"]
+
 [project.urls]
 Homepage = "https://github.com/your-org/evla-scripted-pipeline"
 Repository = "https://github.com/your-org/evla-scripted-pipeline"

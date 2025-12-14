@@ -1,51 +1,96 @@
-import os
 import copy
-import time
-import math
-import urllib
 import datetime
+import os
+import time
+import urllib
 from pathlib import Path
+from typing import Any, Dict, List, Tuple
 
-from typing import Dict, Any, List, Tuple, Optional
-
-import numpy as np
 # NOTE `np` is aliased in `getBCalStatistics` so use `numpy` directly there.
 import numpy
+import numpy as np
 
-from casatasks import gaincal
-from casatools import ms as mstool
-from casatools import (table, measures, quanta, msmetadata)
-tb = table()
-me = measures()
-qa = quanta()
-msmd = msmetadata()
-
-from evla_pipe import PIPE_PATH
 from evla_pipe.compat import running_within_casa
 
-if not running_within_casa:
-    from casatasks import (flagdata, casalog)
+# Defer CASA imports: only import CASA modules when running inside CASA.
+# When not available, provide safe fallbacks so the module can be imported
+# in pure-Python environments (for unit testing).
+if running_within_casa:
+    try:
+        from casatasks import casalog, flagdata, gaincal
+        from casatools import measures, msmetadata, quanta, table
+        from casatools import ms as mstool
 
-MAINLOG = casalog.logfile()
+        tb = table()
+        me = measures()
+        qa = quanta()
+        msmd = msmetadata()
+        MAINLOG = casalog.logfile()
+    except Exception:
+        # If CASA import fails despite running_within_casa, fall back to None
+        gaincal = flagdata = None
+        mstool = None
+        tb = me = qa = msmd = None
+        casalog = None
+        MAINLOG = None
+else:
+    # Not running within CASA: define placeholders
+    gaincal = None
+    flagdata = None
+    mstool = None
+    tb = None
+    me = None
+    qa = None
+    msmd = None
+    casalog = None
+    MAINLOG = None
+
+
+class _DummyCasaLog:
+    def __init__(self):
+        self._file = None
+
+    def setlogfile(self, fname=None):
+        self._file = fname
+
+    def post(self, msg):
+        print(msg)
+
+    def logfile(self):
+        return self._file
+
+    def showconsole(self, flag):
+        return None
+
+
+# If actual casalog not available, use dummy that prints to stdout
+if casalog is None:
+    casalog = _DummyCasaLog()
+    MAINLOG = casalog.logfile()
+
 
 def logprint(msg, logfileout=None):
-    if logfileout is None:
-        # Print only to main log file
-        casalog.setlogfile(MAINLOG)
-        casalog.post(msg)
-    else:
-        # Print to both the passed and main log files
-        casalog.setlogfile(logfileout)
-        casalog.post(msg)
-        casalog.setlogfile(MAINLOG)
-        casalog.post(msg)
+    """Log a message to CASA log (if available) and stdout.
+
+    This function is safe to call even when CASA isn't available; it will
+    fall back to printing to stdout.
+    """
+    try:
+        if logfileout is None:
+            casalog.setlogfile(MAINLOG)
+            casalog.post(msg)
+        else:
+            casalog.setlogfile(logfileout)
+            casalog.post(msg)
+            casalog.setlogfile(MAINLOG)
+            casalog.post(msg)
+    except Exception:
+        # casalog may be a dummy or unavailable; ignore and print
+        pass
     print(msg)
-    
-def task_logprint(msg):
-    logprint(msg, logfileout="logs/testing.log")
-    
-task_logprint("TEST:Loading pipeline directory structure")
-# Pipeline directory structure
+
+
+# Pipeline directory structure (do NOT create directories at import-time)
 LOGS_DIR = Path("logs")
 MEASUREMENT_SETS_DIR = Path("measurement_sets")
 CALTABLES_DIR = Path("final_caltables")
@@ -55,58 +100,45 @@ WEBLOG_DIR = Path("weblog")
 PLOTS_DIR = Path("plots")
 PIPELINE_CONTEXT_DIR = Path("pipeline_context")
 
-task_logprint("TEST:Checking critical directories")
-# Ensure critical directories exist
-LOGS_DIR.mkdir(exist_ok=True)
-MEASUREMENT_SETS_DIR.mkdir(exist_ok=True)
-CALTABLES_DIR.mkdir(exist_ok=True)
-INTERMEDIATE_CALTABLES_DIR.mkdir(exist_ok=True)
-TEST_CALTABLES_DIR.mkdir(exist_ok=True)
-WEBLOG_DIR.mkdir(exist_ok=True)
-PLOTS_DIR.mkdir(exist_ok=True)
-PIPELINE_CONTEXT_DIR.mkdir(exist_ok=True)
-
-
-
 # Flag to control CASA console output (can be set by user or CLI flag)
 SHOW_CASA_OUTPUT = False  # Default: suppress verbose CASA output
 
 
 class SuppressCasaOutput:
-    """
-    Context manager to suppress CASA console output based on global flag.
+    """Context manager to suppress CASA console output based on global flag.
 
     Usage:
         with SuppressCasaOutput():
             # CASA tasks here will not print to console (unless SHOW_CASA_OUTPUT=True)
             gaincal(...)
-
-    The output still goes to the log file, just not to stdout/console.
-    Set utils.SHOW_CASA_OUTPUT = True to enable console output.
     """
+
     def __enter__(self):
-        """Disable console output when entering context (if flag allows)."""
-        if not SHOW_CASA_OUTPUT:
-            casalog.showconsole(False)
+        if not SHOW_CASA_OUTPUT and casalog is not None:
+            try:
+                casalog.showconsole(False)
+            except Exception:
+                pass
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Restore console output when exiting context (if it was suppressed)."""
-        if not SHOW_CASA_OUTPUT:
-            casalog.showconsole(True)
+        if not SHOW_CASA_OUTPUT and casalog is not None:
+            try:
+                casalog.showconsole(True)
+            except Exception:
+                pass
         return False
-
 
 
 def format_qa_status(qa_status):
     """
     Format QA status with colored output and checkmarks.
-    
+
     Parameters
     ----------
     qa_status : str
         Status string ('Pass', 'Fail', etc.)
-        
+
     Returns
     -------
     str
@@ -123,14 +155,14 @@ def format_qa_status(qa_status):
 def get_caltable_path(table_name, table_type="final"):
     """
     Get the full path for a calibration table in the appropriate directory.
-    
+
     Parameters
     ----------
     table_name : str
         Name of the calibration table
     table_type : str
         Type of calibration table: "final", "intermediate", "test", or "prior"
-        
+
     Returns
     -------
     str
@@ -143,7 +175,9 @@ def get_caltable_path(table_name, table_type="final"):
     elif table_type == "test":
         return str(TEST_CALTABLES_DIR / table_name)
     elif table_type == "prior":
-        return str(INTERMEDIATE_CALTABLES_DIR / table_name)  # Prior cals go with intermediate
+        return str(
+            INTERMEDIATE_CALTABLES_DIR / table_name
+        )  # Prior cals go with intermediate
     else:
         return table_name  # Default to current directory
 
@@ -172,18 +206,21 @@ class RunTimer:
 
     def __call__(self, pipestate, status):
         times = self.times
-        times.append({
-                'pipestate': pipestate,
-                'time': time.time(),
-                'status': status,
-        })
+        times.append(
+            {
+                "pipestate": pipestate,
+                "time": time.time(),
+                "status": status,
+            }
+        )
         if status == "end":
             if len(times) < 2:
                 logprint("WARNING Could not write timing, fewer than two measurements.")
-            interval = times[-1]['time'] - times[-2]['time']
+            interval = times[-1]["time"] - times[-2]["time"]
             with open(self.timing_file, "a") as timelog:
                 timelog.write(f"{pipestate}: {interval} sec\n")
         return times
+
 
 runtiming = RunTimer()
 
@@ -192,8 +229,6 @@ runtiming = RunTimer()
 def get_log_path(log_name: str) -> Path:
     """Get path to log file in logs directory."""
     return LOGS_DIR / log_name
-
-
 
 
 def get_weblog_path(filename: str) -> Path:
@@ -215,14 +250,14 @@ def cleanup_import_files(SDM_name: str, working_dir: Path = None) -> None:
     """Clean up files that may interfere with importasdm."""
     if working_dir is None:
         working_dir = Path.cwd()
-    
+
     # Files that can cause importasdm to fail if they exist
     files_to_remove = [
         "onlineFlags.txt",
         f"{SDM_name}.flagversions",
-        f"{SDM_name}.ms.flagversions"
+        f"{SDM_name}.ms.flagversions",
     ]
-    
+
     for file_path in files_to_remove:
         full_path = working_dir / file_path
         if full_path.exists():
@@ -231,6 +266,7 @@ def cleanup_import_files(SDM_name: str, working_dir: Path = None) -> None:
                     full_path.unlink()
                 elif full_path.is_dir():
                     import shutil
+
                     shutil.rmtree(full_path)
                 logprint(f"Cleaned up: {full_path}")
             except Exception as e:
@@ -273,16 +309,16 @@ def find_EVLA_band(frequency):
     # FIXME This isn't necessarily right around X/U since they overlap.
     # Band name and band edge frequencies in GHz
     band_freqs = {
-            "4": ( 0.00,  0.15),
-            "P": ( 0.15,  0.70),
-            "L": ( 0.70,  2.00),
-            "S": ( 2.00,  4.00),
-            "C": ( 4.00,  8.00),
-            "X": ( 8.00, 12.00),
-            "U": (12.00, 18.00),
-            "K": (18.00, 26.50),
-            "A": (26.50, 40.00),
-            "Q": (40.00, 56.00),
+        "4": (0.00, 0.15),
+        "P": (0.15, 0.70),
+        "L": (0.70, 2.00),
+        "S": (2.00, 4.00),
+        "C": (4.00, 8.00),
+        "X": (8.00, 12.00),
+        "U": (12.00, 18.00),
+        "K": (18.00, 26.50),
+        "A": (26.50, 40.00),
+        "Q": (40.00, 56.00),
     }
     freq_ghz = frequency / 1e9  # Hz to GHz
     for name, (f_lo, f_hi) in band_freqs.items():
@@ -309,7 +345,10 @@ def _calc_separation(pos1, pos2):
     deg_to_rad = np.pi / 180.0
     return me.separation(pos1, pos2)["value"] * deg_to_rad
 
-def _extract_position_tuples(field_positions: List[Dict[str, Any]]) -> List[Tuple[float, float]]:
+
+def _extract_position_tuples(
+    field_positions: List[Dict[str, Any]],
+) -> List[Tuple[float, float]]:
     """
     Convert CASA measure dictionaries to (lon, lat) tuples in radians.
 
@@ -325,14 +364,15 @@ def _extract_position_tuples(field_positions: List[Dict[str, Any]]) -> List[Tupl
     """
     positions = []
     for field_pos in field_positions:
-        if isinstance(field_pos, dict) and 'm0' in field_pos and 'm1' in field_pos:
-            lon = field_pos['m0']['value']  # RA in radians
-            lat = field_pos['m1']['value']  # Dec in radians
+        if isinstance(field_pos, dict) and "m0" in field_pos and "m1" in field_pos:
+            lon = field_pos["m0"]["value"]  # RA in radians
+            lat = field_pos["m1"]["value"]  # Dec in radians
             positions.append((lon, lat))
         else:
             task_logprint(f"Warning: Unexpected field position format: {field_pos}")
             positions.append((0.0, 0.0))  # Fallback to origin
     return positions
+
 
 def find_standards(positions, max_sep=1.2e-3):
     """
@@ -340,26 +380,26 @@ def find_standards(positions, max_sep=1.2e-3):
     ----------
     max_sep : number, default 1.2e-3 rad (about 4.1 arcmin)
     """
-    position_3C48  = me.direction('j2000', '1h37m41.299', '33d9m35.133')
-    position_3C138 = me.direction('j2000', '5h21m9.886', '16d38m22.051')
-    position_3C147 = me.direction('j2000', '5h42m36.138', '49d51m7.234')
-    position_3C286 = me.direction('j2000', '13h31m8.288', '30d30m32.959')
-    fields_3C48  = []
+    position_3C48 = me.direction("j2000", "1h37m41.299", "33d9m35.133")
+    position_3C138 = me.direction("j2000", "5h21m9.886", "16d38m22.051")
+    position_3C147 = me.direction("j2000", "5h42m36.138", "49d51m7.234")
+    position_3C286 = me.direction("j2000", "13h31m8.288", "30d30m32.959")
+    fields_3C48 = []
     fields_3C138 = []
     fields_3C147 = []
     fields_3C286 = []
     task_logprint("TEST:Enumerating positions")
     print(positions)
-    #task_logprint("TEST: positions[0].type = %s" %positions[0].type)
+    # task_logprint("TEST: positions[0].type = %s" %positions[0].type)
     print(positions)
     print(positions[0])
-    for ii, (lon,lat) in enumerate(positions):
-        #lon = pos['m0']['value']
-        #lat = pos['m1']['value']
-        task_logprint("TEST: ii, (lon, lat) = %s, %s, %s" %(ii, lon, lat))
-        position = me.direction('j2000', "{0}rad".format(lon), "{0}rad".format(lat))
+    for ii, (lon, lat) in enumerate(positions):
+        # lon = pos['m0']['value']
+        # lat = pos['m1']['value']
+        task_logprint("TEST: ii, (lon, lat) = %s, %s, %s" % (ii, lon, lat))
+        position = me.direction("j2000", "{0}rad".format(lon), "{0}rad".format(lat))
         task_logprint("TEST:Calculating separation")
-        separation = _calc_separation(position, position_3C48)
+        _calc_separation(position, position_3C48)
         if _calc_separation(position, position_3C48) < max_sep:
             fields_3C48.append(ii)
         elif _calc_separation(position, position_3C138) < max_sep:
@@ -409,80 +449,124 @@ def correct_ant_posns(vis_name, print_offsets=False):
     Uses the same algorithm that the AIPS task VLANT does.
     """
     # FIXME haven't checked dictionary iterator stuff yet
-    MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
-              'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
-    URL_BASE = 'http://www.vla.nrao.edu/cgi-bin/evlais_blines.cgi?Year='
+    MONTHS = [
+        "JAN",
+        "FEB",
+        "MAR",
+        "APR",
+        "MAY",
+        "JUN",
+        "JUL",
+        "AUG",
+        "SEP",
+        "OCT",
+        "NOV",
+        "DEC",
+    ]
+    URL_BASE = "http://www.vla.nrao.edu/cgi-bin/evlais_blines.cgi?Year="
     # Get start date+time of observation
     try:
-        observation = tb.open(vis_name+'/OBSERVATION')
-        time_range = tb.getcol('TIME_RANGE')
+        tb.open(vis_name + "/OBSERVATION")
+        time_range = tb.getcol("TIME_RANGE")
     finally:
         tb.close()
-    MJD_start_time = time_range[0][0] / 86400
-    q1 = qa.quantity(time_range[0][0],'s')
-    date_time = qa.time(q1,form='ymd')
+    time_range[0][0] / 86400
+    q1 = qa.quantity(time_range[0][0], "s")
+    date_time = qa.time(q1, form="ymd")
     # FIXME this should probably use the Python datetime module
     # date_time format: '2011/08/10/06:56:49'
-    obs_year, obs_month, obs_day, obs_time_string = date_time[0].split('/')
+    obs_year, obs_month, obs_day, obs_time_string = date_time[0].split("/")
     if int(obs_year) < 2010:
         if print_offsets:
-            print('Does not work for VLA observations')
-        return [1, '', []]
-    obs_hour, obs_minute,obs_second = obs_time_string.split(':')
-    obs_time = 10000*int(obs_year) + 100*int(obs_month) + int(obs_day) + \
-               int(obs_hour)/24.0 + int(obs_minute)/1440.0 + \
-               int(obs_second)/86400.0
+            print("Does not work for VLA observations")
+        return [1, "", []]
+    obs_hour, obs_minute, obs_second = obs_time_string.split(":")
+    obs_time = (
+        10000 * int(obs_year)
+        + 100 * int(obs_month)
+        + int(obs_day)
+        + int(obs_hour) / 24.0
+        + int(obs_minute) / 1440.0
+        + int(obs_second) / 86400.0
+    )
     # Get antenna to station mappings
     try:
-        observation = tb.open(vis_name+'/ANTENNA')
-        ant_names = tb.getcol('NAME')
-        ant_stations = tb.getcol('STATION')
+        tb.open(vis_name + "/ANTENNA")
+        ant_names = tb.getcol("NAME")
+        ant_stations = tb.getcol("STATION")
     finally:
         tb.close()
     ant_num_stas = []
     for ii in range(len(ant_names)):
-        ant_num_stas.append([int(ant_names[ii][2:]), ant_names[ii], \
-                            ant_stations[ii], 0.0, 0.0, 0.0, False])
+        ant_num_stas.append(
+            [
+                int(ant_names[ii][2:]),
+                ant_names[ii],
+                ant_stations[ii],
+                0.0,
+                0.0,
+                0.0,
+                False,
+            ]
+        )
     correction_lines = []
     current_year = datetime.datetime.now().year
     # First, see if the internet connection is possible
     try:
-        response = urllib.request.urlopen(URL_BASE + '2010')
+        response = urllib.request.urlopen(URL_BASE + "2010")
     except URLError as err:
         if print_offsets:
-            print('No internet connection to antenna position correction URL ', err.reason)
-        return [2, '', []]
+            print(
+                "No internet connection to antenna position correction URL ", err.reason
+            )
+        return [2, "", []]
     finally:
         response.close()
-    for year in range(2010, current_year+1):
+    for year in range(2010, current_year + 1):
         try:
             response = urllib.request.urlopen(URL_BASE + str(year))
             html = response.read()
         finally:
             response.close()
-        html_lines = html.decode("utf-8").split('\n')
+        html_lines = html.decode("utf-8").split("\n")
         for correction_line in html_lines:
-            if len(correction_line) and correction_line[0] != '<' and correction_line[0] != ';':
+            if (
+                len(correction_line)
+                and correction_line[0] != "<"
+                and correction_line[0] != ";"
+            ):
                 for month in MONTHS:
                     if month in correction_line:
-                        correction_lines.append(str(year)+' '+correction_line)
+                        correction_lines.append(str(year) + " " + correction_line)
                         break
     corrections_list = []
     for correction_line in correction_lines:
         correction_line_fields = correction_line.split()
-        if (len(correction_line_fields) > 9):
-            c_year, moved_date, obs_date, put_date, put_time_str, ant, pad, Bx, By, Bz = correction_line_fields
-            s_moved = moved_date[:3]
+        if len(correction_line_fields) > 9:
+            (
+                c_year,
+                moved_date,
+                obs_date,
+                put_date,
+                put_time_str,
+                ant,
+                pad,
+                Bx,
+                By,
+                Bz,
+            ) = correction_line_fields
+            moved_date[:3]
             i_month = 1
             for month in MONTHS:
-                if (moved_date.find(month) >= 0):
+                if moved_date.find(month) >= 0:
                     break
                 i_month = i_month + 1
-            moved_time = 10000 * int(c_year) + 100 * i_month + \
-                         int(moved_date[3:])
+            moved_time = 10000 * int(c_year) + 100 * i_month + int(moved_date[3:])
         else:
-            c_year, obs_date, put_date, put_time_str, ant, pad, Bx, By, Bz = correction_line_fields
-            moved_date = '     '
+            c_year, obs_date, put_date, put_time_str, ant, pad, Bx, By, Bz = (
+                correction_line_fields
+            )
+            moved_date = "     "
             moved_time = 0
         s_obs = obs_date[:3]
         i_month = 1
@@ -498,15 +582,43 @@ def correct_ant_posns(vis_name, print_offsets=False):
                 break
             i_month += 1
         put_time = 10000 * int(c_year) + 100 * i_month + int(put_date[3:])
-        put_hr, put_min = put_time_str.split(':')
-        put_time += (int(put_hr)/24.0 + int(put_min)/1440.0)
-        corrections_list.append([c_year, moved_date, moved_time, obs_date, obs_time_2, put_date, put_time, int(ant), pad, float(Bx), float(By), float(Bz)])
+        put_hr, put_min = put_time_str.split(":")
+        put_time += int(put_hr) / 24.0 + int(put_min) / 1440.0
+        corrections_list.append(
+            [
+                c_year,
+                moved_date,
+                moved_time,
+                obs_date,
+                obs_time_2,
+                put_date,
+                put_time,
+                int(ant),
+                pad,
+                float(Bx),
+                float(By),
+                float(Bz),
+            ]
+        )
     for correction_list in corrections_list:
-        c_year, moved_date, moved_time, obs_date, obs_time_2, put_date, put_time, ant, pad, Bx, By, Bz = correction_list
+        (
+            c_year,
+            moved_date,
+            moved_time,
+            obs_date,
+            obs_time_2,
+            put_date,
+            put_time,
+            ant,
+            pad,
+            Bx,
+            By,
+            Bz,
+        ) = correction_list
         ant_ind = -1
         for ii in range(len(ant_num_stas)):
             ant_num_sta = ant_num_stas[ii]
-            if (ant == ant_num_sta[0]):
+            if ant == ant_num_sta[0]:
                 ant_ind = ii
                 break
         if (ant_ind == -1) or (ant_num_sta[6]):
@@ -517,7 +629,7 @@ def correct_ant_posns(vis_name, print_offsets=False):
         ant_num_sta = ant_num_stas[ant_ind]
         if moved_time:
             # the antenna moved
-            if (moved_time > obs_time):
+            if moved_time > obs_time:
                 # we are done considering this antenna
                 ant_num_sta[6] = True
             else:
@@ -525,8 +637,7 @@ def correct_ant_posns(vis_name, print_offsets=False):
                 ant_num_sta[3] = 0.0
                 ant_num_sta[4] = 0.0
                 ant_num_sta[5] = 0.0
-        if ((put_time > obs_time) and (not ant_num_sta[6]) and
-            (pad == ant_num_sta[2])):
+        if (put_time > obs_time) and (not ant_num_sta[6]) and (pad == ant_num_sta[2]):
             # it's the right antenna/pad; add the offsets to those already accumulated
             ant_num_sta[3] += Bx
             ant_num_sta[4] += By
@@ -535,18 +646,23 @@ def correct_ant_posns(vis_name, print_offsets=False):
     parms = []
     for ii in range(len(ant_num_stas)):
         ant_num_sta = ant_num_stas[ii]
-        if ((ant_num_sta[3] != 0.0) or (ant_num_sta[4] != 0.0) or \
-            (ant_num_sta[5] != 0.0)):
-            if (print_offsets):
-                print("offsets for antenna %4s : %8.5f  %8.5f  %8.5f" % \
-                      (ant_num_sta[1], ant_num_sta[3], ant_num_sta[4], ant_num_sta[5]))
+        if (
+            (ant_num_sta[3] != 0.0)
+            or (ant_num_sta[4] != 0.0)
+            or (ant_num_sta[5] != 0.0)
+        ):
+            if print_offsets:
+                print(
+                    "offsets for antenna %4s : %8.5f  %8.5f  %8.5f"
+                    % (ant_num_sta[1], ant_num_sta[3], ant_num_sta[4], ant_num_sta[5])
+                )
             ants.append(ant_num_sta[1])
             parms.append(ant_num_sta[3])
             parms.append(ant_num_sta[4])
             parms.append(ant_num_sta[5])
     if len(parms) == 0 and print_offsets:
         print("No offsets found for this MS")
-    ant_string = ','.join(["%s" % ii for ii in ants])
+    ant_string = ",".join(["%s" % ii for ii in ants])
     return [0, ant_string, parms]
 
 
@@ -556,6 +672,7 @@ def correct_ant_posns(vis_name, print_offsets=False):
 # RefAntGeometry   - Contains the geometry heuristics for the reference antenna.
 # RefAntFlagging   - Contains the flagging heuristics for the reference antenna.
 # FIXME update docstring and writing styles.
+
 
 class RefAntHeuristics:
     """
@@ -587,14 +704,15 @@ class RefAntHeuristics:
     _get_names - This private member function gets the antenna names from the MS.
     """
 
-    def __init__(self,
-            vis,
-            field='',
-            spw='',
-            intent='',
-            geometry=False,
-            flagging=False,
-        ):
+    def __init__(
+        self,
+        vis,
+        field="",
+        spw="",
+        intent="",
+        geometry=False,
+        flagging=False,
+    ):
         """
         Note: If all of the defaults are chosen, no reference antenna list is returned.
 
@@ -640,7 +758,7 @@ class RefAntHeuristics:
         if not (self.geometry or self.flagging):
             return []
         names = self._get_names()
-        score = {n: 0.0 for n in names}
+        score = dict.fromkeys(names, 0.0)
         # For each selected heuristic, add the score for each antenna
         if self.geometry:
             ref_ant_geo = RefAntGeometry(self.vis)
@@ -654,7 +772,10 @@ class RefAntHeuristics:
                 try:
                     score[n] += self.flag_score[n]
                 except KeyError as e:
-                    logprint(f"WARNING: antenna {e}, is completely flagged and missing from calibrators.ms", logfileout='logs/refantwarnings.log')
+                    logprint(
+                        f"WARNING: antenna {e}, is completely flagged and missing from calibrators.ms",
+                        logfileout="logs/refantwarnings.log",
+                    )
         # Calculate the final score and return the list of ranked reference
         # antennas.  The best antennas have the highest score, so a reverse
         # sort is required.
@@ -662,7 +783,7 @@ class RefAntHeuristics:
         values = np.array(list(score.values()))
         argSort = np.argsort(values)[::-1]
         refAntUpper = keys[argSort]
-        refAnt = list()
+        refAnt = []
         for r in refAntUpper:
             refAnt.append(r.lower())
         # Return the list of ranked reference antennas
@@ -670,8 +791,8 @@ class RefAntHeuristics:
 
     def _get_names(self):
         try:
-            tb.open(self.vis+'/ANTENNA')
-            names = tb.getcol('NAME').tolist()
+            tb.open(self.vis + "/ANTENNA")
+            names = tb.getcol("NAME").tolist()
         finally:
             tb.close()
         return names
@@ -752,14 +873,14 @@ class RefAntGeometry:
             'name'              - Array antenna name strings.
             'position_keywords' - Antenna information dictionary.
         """
-        info = dict()
+        info = {}
         try:
-            tb.open( self.vis+'/ANTENNA' )
+            tb.open(self.vis + "/ANTENNA")
             # Get the antenna information from the antenna table
-            info['position'] = tb.getcol('POSITION')
-            info['flag_row'] = tb.getcol('FLAG_ROW')
-            info['name'] = tb.getcol('NAME')
-            info['position_keywords'] = tb.getcolkeywords('POSITION')
+            info["position"] = tb.getcol("POSITION")
+            info["flag_row"] = tb.getcol("FLAG_ROW")
+            info["name"] = tb.getcol("NAME")
+            info["position_keywords"] = tb.getcolkeywords("POSITION")
         finally:
             tb.close()
         return info
@@ -780,22 +901,22 @@ class RefAntGeometry:
         """
         # Initialize the measures dictionary and the position and
         # position_keywords variables
-        measures = dict()
-        position = info['position']
-        position_keywords = info['position_keywords']
-        rf = position_keywords['MEASINFO']['Ref']
-        for row, ant in enumerate(info['name']):
-            if not info['flag_row'][row]:
+        measures = {}
+        position = info["position"]
+        position_keywords = info["position_keywords"]
+        rf = position_keywords["MEASINFO"]["Ref"]
+        for row, ant in enumerate(info["name"]):
+            if not info["flag_row"][row]:
                 p = position[0, row]
-                pk = position_keywords['QuantumUnits'][0]
+                pk = position_keywords["QuantumUnits"][0]
                 v0 = qa.quantity(p, pk)
                 #
                 p = position[1, row]
-                pk = position_keywords['QuantumUnits'][1]
+                pk = position_keywords["QuantumUnits"][1]
                 v1 = qa.quantity(p, pk)
                 #
                 p = position[2, row]
-                pk = position_keywords['QuantumUnits'][2]
+                pk = position_keywords["QuantumUnits"][2]
                 v2 = qa.quantity(p, pk)
                 measures[ant] = me.position(rf=rf, v0=v0, v1=v1, v2=v2)
         return measures
@@ -816,6 +937,7 @@ class RefAntGeometry:
         -------
         Tuple containing containing radius, longitude, and latitude dictionaries.
         """
+
         # The `measures` dictionary follows:
         #   {"ea01": {"m0": {"value": 1, "unit": "m"} ...}}
         # The values from `qa.getvalue` are returned as a single-element numpy
@@ -823,10 +945,11 @@ class RefAntGeometry:
         def get_measures_value(ant, ax, as_unit):
             quantity = qa.convert(measures[ant][ax], as_unit)
             return qa.getvalue(quantity)[0]
+
         ant_names = info["name"]
-        radii = {a: get_measures_value(a, "m2", "m")   for a in ant_names}
-        lons  = {a: get_measures_value(a, "m0", "rad") for a in ant_names}
-        lats  = {a: get_measures_value(a, "m1", "rad") for a in ant_names}
+        radii = {a: get_measures_value(a, "m2", "m") for a in ant_names}
+        lons = {a: get_measures_value(a, "m0", "rad") for a in ant_names}
+        lats = {a: get_measures_value(a, "m1", "rad") for a in ant_names}
         return radii, lons, lats
 
     def _calc_distance(self, radii, lons, lats):
@@ -858,8 +981,8 @@ class RefAntGeometry:
         y -= np.median(y)
         # Calculate the antenna distances from the array reference
         distance = {
-                ant_name: np.sqrt(x[i]**2 + y[i]**2)
-                for i, ant_name in enumerate(radii.keys())
+            ant_name: np.sqrt(x[i] ** 2 + y[i] ** 2)
+            for i, ant_name in enumerate(radii.keys())
         }
         return distance
 
@@ -888,10 +1011,7 @@ class RefAntGeometry:
         far = np.array(list(distance.values()), float)
         n = far.shape[0]
         closeness_score = (1 - far / far.max()) * n
-        score = {
-                name: closeness_score[i]
-                for i, name in enumerate(distance.keys())
-        }
+        score = {name: closeness_score[i] for i, name in enumerate(distance.keys())}
         return score
 
 
@@ -924,6 +1044,7 @@ class RefAntFlagging:
     _get_good   - Get the number of unflagged (good) data from the MS.
     _calc_score - Calculates the flagging score for each antenna.
     """
+
     def __init__(self, vis, field, spw, intent):
         """
         Parameters
@@ -963,19 +1084,19 @@ class RefAntFlagging:
         Dictionary containing the number of unflagged (good) data from the MS.
         """
         results = flagdata(
-                vis=self.vis,
-                mode="summary",
-                field=self.field,
-                spw=self.spw,
-                intent=self.intent,
-                display="",
-                flagbackup=False,
-                savepars=False,
+            vis=self.vis,
+            mode="summary",
+            field=self.field,
+            spw=self.spw,
+            intent=self.intent,
+            display="",
+            flagbackup=False,
+            savepars=False,
         )
         # Calculate the good data total for each antenna.
         good = {
-                name: vals["total"] - vals["flagged"]
-                for name, vals in results["antenna"].items()
+            name: vals["total"] - vals["flagged"]
+            for name, vals in results["antenna"].items()
         }
         return good
 
@@ -1003,70 +1124,67 @@ class RefAntFlagging:
         unflag = np.array(list(good.values()), float)
         n = unflag.shape[0]
         unflagged_score = unflag / unflag.max() * n
-        score = {
-                name: unflagged_score[i]
-                for i, name in enumerate(good.keys())
-        }
+        score = {name: unflagged_score[i] for i, name in enumerate(good.keys())}
         return score
 
 
 def testBPdgains(
-        calMs,
-        calTable,
-        calSpw,
-        calScans,
-        calSolint,
-        refAnt,
-        minBL_for_cal,
-        priorcals,
-        do3C84,
-        UVrange3C84,
-    ):
+    calMs,
+    calTable,
+    calSpw,
+    calScans,
+    calSolint,
+    refAnt,
+    minBL_for_cal,
+    priorcals,
+    do3C84,
+    UVrange3C84,
+):
     # FIXME regularize names
     GainTables = copy.copy(priorcals)
-    GainTables.append(str(get_caltable_path('testdelay.k', 'test')))
+    GainTables.append(str(get_caltable_path("testdelay.k", "test")))
     uvrange = UVrange3C84 if do3C84 else ""
     gaincal(
-            vis=calMs,
-            caltable=calTable,
-            field='',
-            spw=calSpw,
-            intent='',
-            selectdata=True,
-            uvrange=uvrange,
-            scan=calScans,
-            solint=calSolint,
-            combine='scan',
-            preavg=-1.0,
-            refant=refAnt,
-            minblperant=minBL_for_cal,
-            minsnr=5.0,
-            solnorm=False,
-            gaintype='G',
-            smodel=[],
-            calmode='ap',
-            append=False,
-            docallib=False,
-            gaintable=GainTables,
-            gainfield=[''],
-            interp=[''],
-            spwmap=[],
-            parang=False,
+        vis=calMs,
+        caltable=calTable,
+        field="",
+        spw=calSpw,
+        intent="",
+        selectdata=True,
+        uvrange=uvrange,
+        scan=calScans,
+        solint=calSolint,
+        combine="scan",
+        preavg=-1.0,
+        refant=refAnt,
+        minblperant=minBL_for_cal,
+        minsnr=5.0,
+        solnorm=False,
+        gaintype="G",
+        smodel=[],
+        calmode="ap",
+        append=False,
+        docallib=False,
+        gaintable=GainTables,
+        gainfield=[""],
+        interp=[""],
+        spwmap=[],
+        parang=False,
     )
     return getCalFlaggedSoln(calTable)
 
 
 def testdelays(
-        calMs,
-        calTable,
-        calField,
-        calScans,
-        refAnt,
-        minBL_for_cal,
-        priorcals,
-        do3C84,
-        UVrange3C84,
-    ):
+    calMs,
+    calTable,
+    calField,
+    calScans,
+    refAnt,
+    minBL_for_cal,
+    priorcals,
+    do3C84,
+    UVrange3C84,
+):
     """
     Note: can't use uvrange for delay cals because it flags all antennas beyond
     uvrange from the refant; so leave as all in delay cal and have any residual
@@ -1074,97 +1192,97 @@ def testdelays(
     """
     # FIXME regularize names
     GainTables = copy.copy(priorcals)
-    GainTables.append(str(get_caltable_path('testdelayinitialgain.g', 'test')))
+    GainTables.append(str(get_caltable_path("testdelayinitialgain.g", "test")))
     # FIXME see above note in docstring
-    #uvrange = UVrange3C84 if do3C84 else ""
+    # uvrange = UVrange3C84 if do3C84 else ""
     uvrange = ""
     gaincal(
-            vis=calMs,
-            caltable=calTable,
-            field=calField,
-            spw='',
-            intent='',
-            selectdata=True,
-            uvrange=uvrange,
-            scan=calScans,
-            solint='inf',
-            combine='scan',
-            preavg=-1.0,
-            refant=refAnt,
-            minblperant=minBL_for_cal,
-            minsnr=3.0,
-            solnorm=False,
-            gaintype='K',
-            smodel=[],
-            calmode='p',
-            append=False,
-            docallib=False,
-            gaintable=GainTables,
-            gainfield=[''],
-            interp=[''],
-            spwmap=[],
-            parang=False,
+        vis=calMs,
+        caltable=calTable,
+        field=calField,
+        spw="",
+        intent="",
+        selectdata=True,
+        uvrange=uvrange,
+        scan=calScans,
+        solint="inf",
+        combine="scan",
+        preavg=-1.0,
+        refant=refAnt,
+        minblperant=minBL_for_cal,
+        minsnr=3.0,
+        solnorm=False,
+        gaintype="K",
+        smodel=[],
+        calmode="p",
+        append=False,
+        docallib=False,
+        gaintable=GainTables,
+        gainfield=[""],
+        interp=[""],
+        spwmap=[],
+        parang=False,
     )
     # FIXME should perform a check that the caltable was successfully written.
     return getCalFlaggedSoln(calTable)
 
 
 def testgains(
-        calMs,
-        calTable,
-        calSpw,
-        calScans,
-        calSolint,
-        refAnt,
-        minBL_for_cal,
-        combtime,
-    ):
+    calMs,
+    calTable,
+    calSpw,
+    calScans,
+    calSolint,
+    refAnt,
+    minBL_for_cal,
+    combtime,
+):
     """
     Note: when the pipeline can use the full MS instead of calibrators.ms,
     gaintable will have to include all priorcals plus delay.k and BPcal.b
     """
     # FIXME regularize names
     gaincal(
-            vis=calMs,
-            caltable=calTable,
-            field='',
-            spw=calSpw,
-            intent='',
-            selectdata=True,
-            scan=calScans,
-            solint=calSolint,
-            combine='scan',
-            preavg=-1.0,
-            refant=refAnt,
-            minblperant=minBL_for_cal,
-            minsnr=5.0,
-            solnorm=False,
-            gaintype='G',
-            smodel=[],
-            calmode='ap',
-            append=False,
-            docallib=False,
-            gaintable=[''],
-            gainfield=[''],
-            interp=[''],
-            spwmap=[],
-            parang=False,
+        vis=calMs,
+        caltable=calTable,
+        field="",
+        spw=calSpw,
+        intent="",
+        selectdata=True,
+        scan=calScans,
+        solint=calSolint,
+        combine="scan",
+        preavg=-1.0,
+        refant=refAnt,
+        minblperant=minBL_for_cal,
+        minsnr=5.0,
+        solnorm=False,
+        gaintype="G",
+        smodel=[],
+        calmode="ap",
+        append=False,
+        docallib=False,
+        gaintable=[""],
+        gainfield=[""],
+        interp=[""],
+        spwmap=[],
+        parang=False,
     )
     # FIXME should perform a check that the caltable was successfully written.
     return getCalFlaggedSoln(calTable)
 
 
 def semiFinaldelays(
-        calMs,
-        calTable,
-        calField,
-        calScans,
-        refAnt,
-        minBL_for_cal,
-        priorcals,
-        do3C84,
-        UVrange3C84,
-    ):
+    calMs,
+    calTable,
+    calField,
+    calScans,
+    refAnt,
+    minBL_for_cal,
+    priorcals,
+    do3C84,
+    UVrange3C84,
+):
     """
     Note: can't use uvrange for delay cals because it flags all antennas
     beyond uvrange from the refant; so leave as all in delay cal and
@@ -1172,50 +1290,54 @@ def semiFinaldelays(
     until this is fixed
     """
     # FIXME regularize names
-    GainTables=copy.copy(priorcals)
-    GainTables.append(str(get_caltable_path('semiFinaldelayinitialgain.g', 'intermediate')))
+    GainTables = copy.copy(priorcals)
+    GainTables.append(
+        str(get_caltable_path("semiFinaldelayinitialgain.g", "intermediate"))
+    )
     # FIXME see note above in docstring.
-    #uvrange = UVrange3C84 if do3C84 else ""
+    # uvrange = UVrange3C84 if do3C84 else ""
     uvrange = ""
     gaincal(
-            vis=calMs,
-            caltable=calTable,
-            field=calField,
-            spw='',
-            intent='',
-            selectdata=True,
-            uvrange=uvrange,
-            scan=calScans,
-            solint='inf',
-            combine='scan',
-            preavg=-1.0,
-            refant=refAnt,
-            minblperant=minBL_for_cal,
-            minsnr=3.0,
-            solnorm=False,
-            gaintype='K',
-            smodel=[],
-            calmode='p',
-            append=False,
-            docallib=False,
-            gaintable=GainTables,
-            gainfield=[''],
-            interp=[''],
-            spwmap=[],
-            parang=False,
+        vis=calMs,
+        caltable=calTable,
+        field=calField,
+        spw="",
+        intent="",
+        selectdata=True,
+        uvrange=uvrange,
+        scan=calScans,
+        solint="inf",
+        combine="scan",
+        preavg=-1.0,
+        refant=refAnt,
+        minblperant=minBL_for_cal,
+        minsnr=3.0,
+        solnorm=False,
+        gaintype="K",
+        smodel=[],
+        calmode="p",
+        append=False,
+        docallib=False,
+        gaintable=GainTables,
+        gainfield=[""],
+        interp=[""],
+        spwmap=[],
+        parang=False,
     )
     # FIXME should validate caltable was written successfully
     return getCalFlaggedSoln(calTable)
 
 
 def find_3C84(positions):
-    MAX_SEPARATION = 60*2.0e-5
-    position_3C84 = me.direction('j2000', '3h19m48.160', '41d30m42.106')
+    MAX_SEPARATION = 60 * 2.0e-5
+    position_3C84 = me.direction("j2000", "3h19m48.160", "41d30m42.106")
     fields_3C84 = []
-    for ii in range(0,len(positions)):
-        position = me.direction('j2000', str(positions[ii][0])+'rad', str(positions[ii][1])+'rad')
-        separation = me.separation(position,position_3C84)['value'] * np.pi/180.0
-        if (separation < MAX_SEPARATION):
+    for ii in range(0, len(positions)):
+        position = me.direction(
+            "j2000", str(positions[ii][0]) + "rad", str(positions[ii][1]) + "rad"
+        )
+        separation = me.separation(position, position_3C84)["value"] * np.pi / 180.0
+        if separation < MAX_SEPARATION:
             fields_3C84.append(ii)
     return fields_3C84
 
@@ -1224,10 +1346,10 @@ def checkblankplot(plotfile, maincasalog):
     """Returns `True` if file is removed."""
     blankplot = False
     fhandle = os.popen(f'tail {maincasalog} | grep "Plotting 0 unflagged points."')
-    if fhandle.read() != '':
+    if fhandle.read() != "":
         # Plot is blank, so delete the file
-        os.system('rm -rf ' + plotfile)
-        logprint("Plot is blank - file removed.", logfileout='logs/targetflag.log')
+        os.system("rm -rf " + plotfile)
+        logprint("Plot is blank - file removed.", logfileout="logs/targetflag.log")
         blankplot = True
     return blankplot
 
@@ -1332,73 +1454,73 @@ def getCalFlaggedSoln(calTable):
     mytb = table()
 
     mytb.open(calTable)
-    antCol = mytb.getcol('ANTENNA1')
-    spwCol = mytb.getcol('SPECTRAL_WINDOW_ID')
-    fldCol = mytb.getcol('FIELD_ID')
-    #flagCol = mytb.getcol('FLAG')
-    flagVarCol = mytb.getvarcol('FLAG')
+    antCol = mytb.getcol("ANTENNA1")
+    spwCol = mytb.getcol("SPECTRAL_WINDOW_ID")
+    mytb.getcol("FIELD_ID")
+    # flagCol = mytb.getcol('FLAG')
+    flagVarCol = mytb.getvarcol("FLAG")
     mytb.close()
 
     # Initialize a list to hold the results
     # Get shape of FLAG
-    #(np,nc,ni) = flagCol.shape
+    # (np,nc,ni) = flagCol.shape
     rowlist = flagVarCol.keys()
-    nrows = len(rowlist)
+    len(rowlist)
 
     # Create the output dictionary
     outDict = {}
-    outDict['all'] = {}
-    outDict['antspw'] = {}
-    outDict['ant'] = {}
-    outDict['spw'] = {}
-    outDict['antmedian'] = {}
+    outDict["all"] = {}
+    outDict["antspw"] = {}
+    outDict["ant"] = {}
+    outDict["spw"] = {}
+    outDict["antmedian"] = {}
 
     # Ok now go through and for each row and possibly channel compile flags
     ntotal = 0
     nflagged = 0
     # Lists for median calc
     medDict = {}
-    medDict['total'] = []
-    medDict['flagged'] = []
-    medDict['fraction'] = []
+    medDict["total"] = []
+    medDict["flagged"] = []
+    medDict["fraction"] = []
 
     for rrow in rowlist:
-        rown = rrow.strip('r')
-        idx = int(rown)-1
+        rown = rrow.strip("r")
+        idx = int(rown) - 1
         antIdx = antCol[idx]
         spwIdx = spwCol[idx]
         #
         flagArr = flagVarCol[rrow]
         # Get the shape of this data row
-        (np,nc,ni) = flagArr.shape
+        (np, nc, ni) = flagArr.shape
         # ni should be 1 for this
         iid = 0
         #
         # Set up dictionaries if needed
-        if antIdx in outDict['antspw']:
-            if spwIdx not in outDict['antspw'][antIdx]:
-                outDict['antspw'][antIdx][spwIdx] = {}
+        if antIdx in outDict["antspw"]:
+            if spwIdx not in outDict["antspw"][antIdx]:
+                outDict["antspw"][antIdx][spwIdx] = {}
                 for poln in range(np):
-                    outDict['antspw'][antIdx][spwIdx][poln] = {}
-                    outDict['antspw'][antIdx][spwIdx][poln]['total'] = 0
-                    outDict['antspw'][antIdx][spwIdx][poln]['flagged'] = 0
+                    outDict["antspw"][antIdx][spwIdx][poln] = {}
+                    outDict["antspw"][antIdx][spwIdx][poln]["total"] = 0
+                    outDict["antspw"][antIdx][spwIdx][poln]["flagged"] = 0
         else:
-            outDict['ant'][antIdx] = {}
-            outDict['antspw'][antIdx] = {}
-            outDict['antspw'][antIdx][spwIdx] = {}
+            outDict["ant"][antIdx] = {}
+            outDict["antspw"][antIdx] = {}
+            outDict["antspw"][antIdx][spwIdx] = {}
             for poln in range(np):
-                outDict['ant'][antIdx][poln] = {}
-                outDict['ant'][antIdx][poln]['total'] = 0
-                outDict['ant'][antIdx][poln]['flagged'] = 0.0
-                outDict['antspw'][antIdx][spwIdx][poln] = {}
-                outDict['antspw'][antIdx][spwIdx][poln]['total'] = 0
-                outDict['antspw'][antIdx][spwIdx][poln]['flagged'] = 0.0
-        if spwIdx not in outDict['spw']:
-            outDict['spw'][spwIdx] = {}
+                outDict["ant"][antIdx][poln] = {}
+                outDict["ant"][antIdx][poln]["total"] = 0
+                outDict["ant"][antIdx][poln]["flagged"] = 0.0
+                outDict["antspw"][antIdx][spwIdx][poln] = {}
+                outDict["antspw"][antIdx][spwIdx][poln]["total"] = 0
+                outDict["antspw"][antIdx][spwIdx][poln]["flagged"] = 0.0
+        if spwIdx not in outDict["spw"]:
+            outDict["spw"][spwIdx] = {}
             for poln in range(np):
-                outDict['spw'][spwIdx][poln] = {}
-                outDict['spw'][spwIdx][poln]['total'] = 0
-                outDict['spw'][spwIdx][poln]['flagged'] = 0.0
+                outDict["spw"][spwIdx][poln] = {}
+                outDict["spw"][spwIdx][poln]["total"] = 0
+                outDict["spw"][spwIdx][poln]["flagged"] = 0.0
         #
         # Sum up the in-row (per pol per chan) flags for this row
         nptotal = 0
@@ -1410,60 +1532,62 @@ def getCalFlaggedSoln(calTable):
             for chan in range(nc):
                 if flagArr[poln][chan][iid]:
                     ncflagged += 1
-            npflagged = float(ncflagged)/float(nc)
-            nflagged += float(ncflagged)/float(nc)
+            npflagged = float(ncflagged) / float(nc)
+            nflagged += float(ncflagged) / float(nc)
             #
-            outDict['ant'][antIdx][poln]['total'] += 1
-            outDict['spw'][spwIdx][poln]['total'] += 1
-            outDict['antspw'][antIdx][spwIdx][poln]['total'] += 1
+            outDict["ant"][antIdx][poln]["total"] += 1
+            outDict["spw"][spwIdx][poln]["total"] += 1
+            outDict["antspw"][antIdx][spwIdx][poln]["total"] += 1
             #
-            outDict['ant'][antIdx][poln]['flagged'] += npflagged
-            outDict['spw'][spwIdx][poln]['flagged'] += npflagged
-            outDict['antspw'][antIdx][spwIdx][poln]['flagged'] += npflagged
+            outDict["ant"][antIdx][poln]["flagged"] += npflagged
+            outDict["spw"][spwIdx][poln]["flagged"] += npflagged
+            outDict["antspw"][antIdx][spwIdx][poln]["flagged"] += npflagged
             #
 
-    outDict['all']['total'] = ntotal
-    outDict['all']['flagged'] = nflagged
-    if ntotal>0:
-        outDict['all']['fraction'] = float(nflagged)/float(ntotal)
+    outDict["all"]["total"] = ntotal
+    outDict["all"]["flagged"] = nflagged
+    if ntotal > 0:
+        outDict["all"]["fraction"] = float(nflagged) / float(ntotal)
     else:
-        outDict['all']['fraction'] = 0.0
+        outDict["all"]["fraction"] = 0.0
 
     # Go back and get fractions
-    for antIdx in outDict['ant'].keys():
+    for antIdx in outDict["ant"].keys():
         nptotal = 0
         npflagged = 0
-        for poln in outDict['ant'][antIdx].keys():
-            nctotal = outDict['ant'][antIdx][poln]['total']
-            ncflagged = outDict['ant'][antIdx][poln]['flagged']
-            outDict['ant'][antIdx][poln]['fraction'] = float(ncflagged)/float(nctotal)
+        for poln in outDict["ant"][antIdx].keys():
+            nctotal = outDict["ant"][antIdx][poln]["total"]
+            ncflagged = outDict["ant"][antIdx][poln]["flagged"]
+            outDict["ant"][antIdx][poln]["fraction"] = float(ncflagged) / float(nctotal)
             #
             nptotal += nctotal
             npflagged += ncflagged
-        medDict['total'].append(nptotal)
-        medDict['flagged'].append(npflagged)
-        medDict['fraction'].append(float(npflagged)/float(nptotal))
+        medDict["total"].append(nptotal)
+        medDict["flagged"].append(npflagged)
+        medDict["fraction"].append(float(npflagged) / float(nptotal))
     #
-    for spwIdx in outDict['spw'].keys():
-        for poln in outDict['spw'][spwIdx].keys():
-            nptotal = outDict['spw'][spwIdx][poln]['total']
-            npflagged = outDict['spw'][spwIdx][poln]['flagged']
-            outDict['spw'][spwIdx][poln]['fraction'] = float(npflagged)/float(nptotal)
+    for spwIdx in outDict["spw"].keys():
+        for poln in outDict["spw"][spwIdx].keys():
+            nptotal = outDict["spw"][spwIdx][poln]["total"]
+            npflagged = outDict["spw"][spwIdx][poln]["flagged"]
+            outDict["spw"][spwIdx][poln]["fraction"] = float(npflagged) / float(nptotal)
     #
-    for antIdx in outDict['antspw'].keys():
-        for spwIdx in outDict['antspw'][antIdx].keys():
-            for poln in outDict['antspw'][antIdx][spwIdx].keys():
-                nptotal = outDict['antspw'][antIdx][spwIdx][poln]['total']
-                npflagged = outDict['antspw'][antIdx][spwIdx][poln]['flagged']
-                outDict['antspw'][antIdx][spwIdx][poln]['fraction'] = float(npflagged)/float(nptotal)
+    for antIdx in outDict["antspw"].keys():
+        for spwIdx in outDict["antspw"][antIdx].keys():
+            for poln in outDict["antspw"][antIdx][spwIdx].keys():
+                nptotal = outDict["antspw"][antIdx][spwIdx][poln]["total"]
+                npflagged = outDict["antspw"][antIdx][spwIdx][poln]["flagged"]
+                outDict["antspw"][antIdx][spwIdx][poln]["fraction"] = float(
+                    npflagged
+                ) / float(nptotal)
     # do medians
-    outDict['antmedian'] = {}
+    outDict["antmedian"] = {}
     for item in medDict.keys():
         alist = medDict[item]
         aarr = numpy.array(alist)
         amed = numpy.median(aarr)
-        outDict['antmedian'][item] = amed
-    outDict['antmedian']['number'] = len(medDict['fraction'])
+        outDict["antmedian"][item] = amed
+    outDict["antmedian"]["number"] = len(medDict["fraction"])
 
     return outDict
 
@@ -1568,39 +1692,41 @@ def buildscans(msfile):
     """
     # dictionary with lookup for correlation strings
     # from http://casa.nrao.edu/docs/doxygen/html/classcasa_1_1Stokes.html
-    cordesclist = ['Undefined',
-                   'I',
-                   'Q',
-                   'U',
-                   'V',
-                   'RR',
-                   'RL',
-                   'LR',
-                   'LL',
-                   'XX',
-                   'XY',
-                   'YX',
-                   'YY',
-                   'RX',
-                   'RY',
-                   'LX',
-                   'LY',
-                   'XR',
-                   'XL',
-                   'YR',
-                   'YL',
-                   'PP',
-                   'PQ',
-                   'QP',
-                   'QQ',
-                   'RCircular',
-                   'LCircular',
-                   'Linear',
-                   'Ptotal',
-                   'Plinear',
-                   'PFtotal',
-                   'PFlinear',
-                   'Pangle' ]
+    cordesclist = [
+        "Undefined",
+        "I",
+        "Q",
+        "U",
+        "V",
+        "RR",
+        "RL",
+        "LR",
+        "LL",
+        "XX",
+        "XY",
+        "YX",
+        "YY",
+        "RX",
+        "RY",
+        "LX",
+        "LY",
+        "XR",
+        "XL",
+        "YR",
+        "YL",
+        "PP",
+        "PQ",
+        "QP",
+        "QQ",
+        "RCircular",
+        "LCircular",
+        "Linear",
+        "Ptotal",
+        "Plinear",
+        "PFtotal",
+        "PFlinear",
+        "Pangle",
+    ]
     #
     # Usage: find desc for an index, e.g. cordesclist[corrtype]
     #        find index for a desc, e.g. cordesclist.index(corrdesc)
@@ -1610,50 +1736,50 @@ def buildscans(msfile):
 
     # Access the MS
     try:
-        ms.open(msfile,nomodify=True)
+        ms.open(msfile, nomodify=True)
     except:
         print(f"ERROR: failed to open ms tool on file {msfile}")
         exit(1)
 
-    print('Getting scansummary from MS')
+    print("Getting scansummary from MS")
     scd = ms.getscansummary()
 
     # Find number of data description IDs
-    tb.open(msfile+"/DATA_DESCRIPTION")
-    ddspwarr=tb.getcol("SPECTRAL_WINDOW_ID")
-    ddpolarr=tb.getcol("POLARIZATION_ID")
+    tb.open(msfile + "/DATA_DESCRIPTION")
+    ddspwarr = tb.getcol("SPECTRAL_WINDOW_ID")
+    ddpolarr = tb.getcol("POLARIZATION_ID")
     tb.close()
     ddspwlist = ddspwarr.tolist()
     ddpollist = ddpolarr.tolist()
     ndd = len(ddspwlist)
-    print(f'Found {ndd} DataDescription IDs')
+    print(f"Found {ndd} DataDescription IDs")
     #
     # The SPECTRAL_WINDOW table
-    tb.open(msfile+"/SPECTRAL_WINDOW")
-    nchanarr=tb.getcol("NUM_CHAN")
-    spwnamearr=tb.getcol("NAME")
-    reffreqarr=tb.getcol("REF_FREQUENCY")
+    tb.open(msfile + "/SPECTRAL_WINDOW")
+    nchanarr = tb.getcol("NUM_CHAN")
+    spwnamearr = tb.getcol("NAME")
+    reffreqarr = tb.getcol("REF_FREQUENCY")
     tb.close()
     nspw = len(nchanarr)
     spwlookup = {}
     for isp in range(nspw):
         spwlookup[isp] = {}
-        spwlookup[isp]['nchan'] = nchanarr[isp]
-        spwlookup[isp]['name'] = str( spwnamearr[isp] )
-        spwlookup[isp]['reffreq'] = reffreqarr[isp]
-    print('Extracted information for '+str(nspw)+' SpectralWindows')
+        spwlookup[isp]["nchan"] = nchanarr[isp]
+        spwlookup[isp]["name"] = str(spwnamearr[isp])
+        spwlookup[isp]["reffreq"] = reffreqarr[isp]
+    print("Extracted information for " + str(nspw) + " SpectralWindows")
     #
     # Now the polarizations (number of correlations in each pol id
-    tb.open(msfile+"/POLARIZATION")
-    ncorarr=tb.getcol("NUM_CORR")
+    tb.open(msfile + "/POLARIZATION")
+    ncorarr = tb.getcol("NUM_CORR")
     # corr_type is in general variable shape, have to read row-by-row
     # or use getvarcol to return into dictionary, we will iterate manually
     npols = len(ncorarr)
     polindex = {}
     poldescr = {}
     for ip in range(npols):
-        cort=tb.getcol("CORR_TYPE",startrow=ip,nrow=1)
-        (nct,nr) = cort.shape
+        cort = tb.getcol("CORR_TYPE", startrow=ip, nrow=1)
+        (nct, nr) = cort.shape
         cortypes = []
         cordescs = []
         for ict in range(nct):
@@ -1667,40 +1793,40 @@ def buildscans(msfile):
     # for alma this would be 9,10,11,12 for XX,XY,YX,YY respectively
     # cordesc are the strings associated with the types (enum for casa)
     tb.close()
-    print('Extracted information for '+str(npols)+' Polarization Setups')
+    print("Extracted information for " + str(npols) + " Polarization Setups")
     #
     # Build the DD index
     #
     ddindex = {}
-    ncorlist=ncorarr.tolist()
+    ncorlist = ncorarr.tolist()
     for idd in range(ndd):
         ddindex[idd] = {}
         isp = ddspwlist[idd]
-        ddindex[idd]['spw'] = isp
-        ddindex[idd]['spwname'] = spwlookup[isp]['name']
-        ddindex[idd]['nchan'] = spwlookup[isp]['nchan']
-        ddindex[idd]['reffreq'] = spwlookup[isp]['reffreq']
+        ddindex[idd]["spw"] = isp
+        ddindex[idd]["spwname"] = spwlookup[isp]["name"]
+        ddindex[idd]["nchan"] = spwlookup[isp]["nchan"]
+        ddindex[idd]["reffreq"] = spwlookup[isp]["reffreq"]
         #
         ipol = ddpollist[idd]
-        ddindex[idd]['ipol'] = ipol
-        ddindex[idd]['npol'] = ncorlist[ipol]
-        ddindex[idd]['corrtype'] = polindex[ipol]
-        ddindex[idd]['corrdesc'] = poldescr[ipol]
+        ddindex[idd]["ipol"] = ipol
+        ddindex[idd]["npol"] = ncorlist[ipol]
+        ddindex[idd]["corrtype"] = polindex[ipol]
+        ddindex[idd]["corrdesc"] = poldescr[ipol]
     #
     # Now get raw scan intents from STATE table
-    tb.open(msfile+"/STATE")
-    intentarr=tb.getcol("OBS_MODE")
-    subscanarr=tb.getcol("SUB_SCAN")
+    tb.open(msfile + "/STATE")
+    intentarr = tb.getcol("OBS_MODE")
+    subscanarr = tb.getcol("SUB_SCAN")
     tb.close()
     intentlist = intentarr.tolist()
-    subscanlist = subscanarr.tolist()
+    subscanarr.tolist()
     nstates = intentlist.__len__()
-    print('Found '+str(nstates)+' StateIds')
+    print("Found " + str(nstates) + " StateIds")
     #
     # Now get FIELD table directions
-    tb.open(msfile+"/FIELD")
-    fnamearr=tb.getcol("NAME")
-    fpdirarr=tb.getcol("PHASE_DIR")
+    tb.open(msfile + "/FIELD")
+    fnamearr = tb.getcol("NAME")
+    fpdirarr = tb.getcol("PHASE_DIR")
     tb.close()
     flist = fnamearr.tolist()
     nfields = len(flist)
@@ -1708,10 +1834,10 @@ def buildscans(msfile):
     fielddict = {}
     for ifld in range(nfields):
         fielddict[ifld] = {}
-        fielddict[ifld]['name'] = flist[ifld]
+        fielddict[ifld]["name"] = flist[ifld]
         # these are numpy.float64
-        fielddict[ifld]['rra'] = fpdirarr[0,0,ifld]
-        fielddict[ifld]['rdec'] = fpdirarr[1,0,ifld]
+        fielddict[ifld]["rra"] = fpdirarr[0, 0, ifld]
+        fielddict[ifld]["rdec"] = fpdirarr[1, 0, ifld]
     #
     # Now compile list of visibility times and info
     #
@@ -1720,29 +1846,30 @@ def buildscans(msfile):
     timdict = {}
     ddlookup = {}
     ddscantimes = {}
-    ntottimes=0
+    ntottimes = 0
     for idd in range(ndd):
         # Select this DD (after reset if needed)
-        if idd>0: ms.selectinit(reset=True)
+        if idd > 0:
+            ms.selectinit(reset=True)
         ms.selectinit(idd)
-        #recf = ms.getdata(["flag"])
-        #(nx,nc,ni) = recf['flag'].shape
+        # recf = ms.getdata(["flag"])
+        # (nx,nc,ni) = recf['flag'].shape
         # get the times
-        rect = ms.getdata(["time","field_id","scan_number"],ifraxis=True)
-        nt = rect['time'].shape[0]
-        ntottimes+=nt
-        print('Found '+str(nt)+' times in DD='+str(idd))
+        rect = ms.getdata(["time", "field_id", "scan_number"], ifraxis=True)
+        nt = rect["time"].shape[0]
+        ntottimes += nt
+        print("Found " + str(nt) + " times in DD=" + str(idd))
         #
         timdict[idd] = {}
-        timdict[idd]['time'] = rect['time']
-        timdict[idd]['field_id'] = rect['field_id']
-        timdict[idd]['scan_number'] = rect['scan_number']
+        timdict[idd]["time"] = rect["time"]
+        timdict[idd]["field_id"] = rect["field_id"]
+        timdict[idd]["scan_number"] = rect["scan_number"]
         #
         for it in range(nt):
-            isc = rect['scan_number'][it]
-            tim = rect['time'][it]
+            isc = rect["scan_number"][it]
+            tim = rect["time"][it]
             if isc in ddlookup:
-                if ddlookup[isc].count(idd)<1:
+                if ddlookup[isc].count(idd) < 1:
                     ddlookup[isc].append(idd)
                 if idd in ddscantimes[isc]:
                     ddscantimes[isc][idd].append(tim)
@@ -1754,100 +1881,107 @@ def buildscans(msfile):
                 ddscantimes[isc][idd] = [tim]
 
     #
-    print('Found total '+str(ntottimes)+' times')
+    print("Found total " + str(ntottimes) + " times")
 
     ms.close()
 
     # compile a list of scan times
     #
-    #scd = mysc['summary']
+    # scd = mysc['summary']
     scanlist = []
     scanindex = {}
     scl = scd.keys()
     for sscan in scl:
         isc = int(sscan)
         scanlist.append(isc)
-        scanindex[isc]=sscan
+        scanindex[isc] = sscan
 
     scanlist.sort()
 
     nscans = len(scanlist)
-    print('Found '+str(nscans)+' scans min='+str(min(scanlist))+' max='+str(max(scanlist)))
+    print(
+        "Found "
+        + str(nscans)
+        + " scans min="
+        + str(min(scanlist))
+        + " max="
+        + str(max(scanlist))
+    )
 
     scantimes = []
     scandict = {}
 
     # Put DataDescription lookup into dictionary
-    scandict['DataDescription'] = ddindex
+    scandict["DataDescription"] = ddindex
 
     # Put Scan information in dictionary
-    scandict['Scans'] = {}
+    scandict["Scans"] = {}
     for isc in scanlist:
         sscan = scanindex[isc]
         # sub-scans, differentiated by StateId
         subs = scd[sscan].keys()
         #
-        scan_start = -1.
-        scan_end = -1.
+        scan_start = -1.0
+        scan_end = -1.0
         for ss in subs:
-            bt = scd[sscan][ss]['BeginTime']
-            et = scd[sscan][ss]['EndTime']
-            if scan_start>0.:
-                if bt<scan_start:
-                    scan_start=bt
+            bt = scd[sscan][ss]["BeginTime"]
+            et = scd[sscan][ss]["EndTime"]
+            if scan_start > 0.0:
+                if bt < scan_start:
+                    scan_start = bt
             else:
-                scan_start=bt
-            if scan_end>0.:
-                if et>scan_end:
-                    scan_end=et
+                scan_start = bt
+            if scan_end > 0.0:
+                if et > scan_end:
+                    scan_end = et
             else:
-                scan_end=et
-        scan_mid = 0.5*(scan_start + scan_end)
+                scan_end = et
+        scan_mid = 0.5 * (scan_start + scan_end)
 
-        scan_int = scd[sscan]['0']['IntegrationTime']
+        scan_int = scd[sscan]["0"]["IntegrationTime"]
 
         scantimes.append(scan_mid)
 
-        scandict['Scans'][isc] = {}
-        scandict['Scans'][isc]['scan_start'] = scan_start
-        scandict['Scans'][isc]['scan_end'] = scan_end
-        scandict['Scans'][isc]['scan_mid'] = scan_mid
-        scandict['Scans'][isc]['scan_int'] = scan_int
+        scandict["Scans"][isc] = {}
+        scandict["Scans"][isc]["scan_start"] = scan_start
+        scandict["Scans"][isc]["scan_end"] = scan_end
+        scandict["Scans"][isc]["scan_mid"] = scan_mid
+        scandict["Scans"][isc]["scan_int"] = scan_int
 
-        ifld = scd[sscan]['0']['FieldId']
-        scandict['Scans'][isc]['field'] = ifld
-        scandict['Scans'][isc]['rra'] = fielddict[ifld]['rra']
-        scandict['Scans'][isc]['rdec'] = fielddict[ifld]['rdec']
+        ifld = scd[sscan]["0"]["FieldId"]
+        scandict["Scans"][isc]["field"] = ifld
+        scandict["Scans"][isc]["rra"] = fielddict[ifld]["rra"]
+        scandict["Scans"][isc]["rdec"] = fielddict[ifld]["rdec"]
 
-        spws = scd[sscan]['0']['SpwIds']
-        scandict['Scans'][isc]['spw'] = spws.tolist()
+        spws = scd[sscan]["0"]["SpwIds"]
+        scandict["Scans"][isc]["spw"] = spws.tolist()
 
         # state id of first sub-scan
-        stateid = scd[sscan]['0']['StateId']
+        stateid = scd[sscan]["0"]["StateId"]
         # get intents from STATE table
         intents = intentlist[stateid]
         # this is a string with comma-separated intents
-        scandict['Scans'][isc]['intents'] = intents
+        scandict["Scans"][isc]["intents"] = intents
 
         # DDs for this scan
         ddlist = ddlookup[isc]
-        scandict['Scans'][isc]['dd'] = ddlist
+        scandict["Scans"][isc]["dd"] = ddlist
 
         # number of polarizations for this list of dds
         ddnpollist = []
         for idd in ddlist:
-            npol = ddindex[idd]['npol']
+            npol = ddindex[idd]["npol"]
             ddnpollist.append(npol)
-        scandict['Scans'][isc]['npol'] = ddnpollist
+        scandict["Scans"][isc]["npol"] = ddnpollist
 
         # visibility times per dd in this scan
         #
-        scandict['Scans'][isc]['times'] = {}
+        scandict["Scans"][isc]["times"] = {}
         for idd in ddlist:
-            scandict['Scans'][isc]['times'][idd] = ddscantimes[isc][idd]
+            scandict["Scans"][isc]["times"][idd] = ddscantimes[isc][idd]
 
     mysize = scandict.__sizeof__()
-    print('Size of scandict in memory is '+str(mysize)+' bytes')
+    print("Size of scandict in memory is " + str(mysize) + " bytes")
     return scandict
 
 
@@ -2085,7 +2219,7 @@ def getBCalStatistics(calTable, innerbuff=0.1):
     """
     # define range for "inner" channels
     if innerbuff >= 0.0 and innerbuff < 0.5:
-        fcrange = [innerbuff, 1.0-innerbuff]
+        fcrange = [innerbuff, 1.0 - innerbuff]
     else:
         fcrange = [0.1, 0.9]
 
@@ -2100,27 +2234,27 @@ def getBCalStatistics(calTable, innerbuff=0.1):
     mytb.open(calTable)
 
     # Check that this is a B Jones table
-    caltype = mytb.getkeyword('VisCal')
-    if caltype=='B Jones':
-        print('This is a B Jones table, proceeding')
+    caltype = mytb.getkeyword("VisCal")
+    if caltype == "B Jones":
+        print("This is a B Jones table, proceeding")
     else:
-        print('This is NOT a B Jones table, aborting')
+        print("This is NOT a B Jones table, aborting")
         return outDict
 
-    antCol = mytb.getcol('ANTENNA1')
-    spwCol = mytb.getcol('SPECTRAL_WINDOW_ID')
-    fldCol = mytb.getcol('FIELD_ID')
+    antCol = mytb.getcol("ANTENNA1")
+    spwCol = mytb.getcol("SPECTRAL_WINDOW_ID")
+    mytb.getcol("FIELD_ID")
 
     # these columns are possibly variable in size
-    #flagCol = mytb.getcol('FLAG')
-    flagVarCol = mytb.getvarcol('FLAG')
-    #dataCol = mytb.getcol('CPARAM')
-    dataVarCol = mytb.getvarcol('CPARAM')
+    # flagCol = mytb.getcol('FLAG')
+    flagVarCol = mytb.getvarcol("FLAG")
+    # dataCol = mytb.getcol('CPARAM')
+    dataVarCol = mytb.getvarcol("CPARAM")
     mytb.close()
 
     # get names from ANTENNA table
-    mytb.open(calTable+'/ANTENNA')
-    antNameCol = mytb.getcol('NAME')
+    mytb.open(calTable + "/ANTENNA")
+    antNameCol = mytb.getcol("NAME")
     mytb.close()
     nant = len(antNameCol)
 
@@ -2129,8 +2263,8 @@ def getBCalStatistics(calTable, innerbuff=0.1):
         antDict[iant] = antNameCol[iant]
 
     # get names from SPECTRAL_WINDOW table
-    mytb.open(calTable+'/SPECTRAL_WINDOW')
-    spwNameCol = mytb.getcol('NAME')
+    mytb.open(calTable + "/SPECTRAL_WINDOW")
+    spwNameCol = mytb.getcol("NAME")
     mytb.close()
     nspw = len(spwNameCol)
 
@@ -2140,13 +2274,13 @@ def getBCalStatistics(calTable, innerbuff=0.1):
     spwDict = {}
     for ispw in range(nspw):
         try:
-            (rx,bb,sb) = spwNameCol[ispw].split('#')
+            (rx, bb, sb) = spwNameCol[ispw].split("#")
         except:
-            rx = 'Unknown'
-            bb = 'Unknown'
+            rx = "Unknown"
+            bb = "Unknown"
             sb = ispw
-        spwDict[ispw] = {'RX':rx, 'Baseband':bb, 'Subband':sb}
-        if rxbands.count(rx)<1:
+        spwDict[ispw] = {"RX": rx, "Baseband": bb, "Subband": sb}
+        if rxbands.count(rx) < 1:
             rxbands.append(rx)
         if rx in rxBasebandDict:
             if bb in rxBasebandDict[rx]:
@@ -2157,22 +2291,22 @@ def getBCalStatistics(calTable, innerbuff=0.1):
             rxBasebandDict[rx] = {}
             rxBasebandDict[rx][bb] = [ispw]
 
-    print('Found '+str(len(rxbands))+' Rx bands')
+    print("Found " + str(len(rxbands)) + " Rx bands")
     for rx in rxBasebandDict.keys():
         bblist = rxBasebandDict[rx].keys()
-        print('Rx band '+str(rx)+' has basebands: '+str(bblist))
+        print("Rx band " + str(rx) + " has basebands: " + str(bblist))
 
     # Initialize a list to hold the results
     # Get shape of FLAG
-    #(np,nc,ni) = flagCol.shape
+    # (np,nc,ni) = flagCol.shape
     # Get shape of CPARAM
-    #(np,nc,ni) = dataCol.shape
+    # (np,nc,ni) = dataCol.shape
     rowlist = dataVarCol.keys()
-    nrows = len(rowlist)
+    len(rowlist)
 
     # Populate output dictionary structure
-    outDict['antspw'] = {}
-    outDict['antband'] = {}
+    outDict["antspw"] = {}
+    outDict["antband"] = {}
 
     # Our fields will be: running 'n','mean','min','max' for 'amp'
     # Note - running mean(n+1) = ( n*mean(n) + x(n+1) )/(n+1) = mean(n) + (x(n+1)-mean(n))/(n+1)
@@ -2184,93 +2318,98 @@ def getBCalStatistics(calTable, innerbuff=0.1):
     ngood = 0
     ninnergood = 0
     for rrow in rowlist:
-        rown = rrow.strip('r')
-        idx = int(rown)-1
+        rown = rrow.strip("r")
+        idx = int(rown) - 1
         antIdx = antCol[idx]
         spwIdx = spwCol[idx]
         #
         dataArr = dataVarCol[rrow]
         flagArr = flagVarCol[rrow]
         # Get the shape of this data row
-        (np,nc,ni) = dataArr.shape
+        (np, nc, ni) = dataArr.shape
         # ni should be 1 for this
         iid = 0
 
         # receiver and baseband and subband
-        rx = spwDict[spwIdx]['RX']
-        bb = spwDict[spwIdx]['Baseband']
-        sb = spwDict[spwIdx]['Subband']
+        rx = spwDict[spwIdx]["RX"]
+        bb = spwDict[spwIdx]["Baseband"]
+        sb = spwDict[spwIdx]["Subband"]
 
         # Set up dictionaries if needed
-        parts = ['all','inner']
-        quants = ['amp','phase','real','imag']
-        vals = ['min','max','mean','var']
-        if antIdx in outDict['antspw']:
-            if spwIdx not in outDict['antspw'][antIdx]:
-                outDict['antspw'][antIdx][spwIdx] = {}
+        parts = ["all", "inner"]
+        quants = ["amp", "phase", "real", "imag"]
+        vals = ["min", "max", "mean", "var"]
+        if antIdx in outDict["antspw"]:
+            if spwIdx not in outDict["antspw"][antIdx]:
+                outDict["antspw"][antIdx][spwIdx] = {}
                 for poln in range(np):
-                    outDict['antspw'][antIdx][spwIdx][poln] = {}
+                    outDict["antspw"][antIdx][spwIdx][poln] = {}
                     for part in parts:
-                        outDict['antspw'][antIdx][spwIdx][poln][part] = {}
-                        outDict['antspw'][antIdx][spwIdx][poln][part]['total'] = 0
-                        outDict['antspw'][antIdx][spwIdx][poln][part]['number'] = 0
+                        outDict["antspw"][antIdx][spwIdx][poln][part] = {}
+                        outDict["antspw"][antIdx][spwIdx][poln][part]["total"] = 0
+                        outDict["antspw"][antIdx][spwIdx][poln][part]["number"] = 0
                         for quan in quants:
-                            outDict['antspw'][antIdx][spwIdx][poln][part][quan] = {}
+                            outDict["antspw"][antIdx][spwIdx][poln][part][quan] = {}
                             for val in vals:
-                                outDict['antspw'][antIdx][spwIdx][poln][part][quan][val] = 0.0
-            if rx in outDict['antband'][antIdx]:
-                if bb not in outDict['antband'][antIdx][rx]:
-                    outDict['antband'][antIdx][rx][bb] = {}
+                                outDict["antspw"][antIdx][spwIdx][poln][part][quan][
+                                    val
+                                ] = 0.0
+            if rx in outDict["antband"][antIdx]:
+                if bb not in outDict["antband"][antIdx][rx]:
+                    outDict["antband"][antIdx][rx][bb] = {}
                     for part in parts:
-                        outDict['antband'][antIdx][rx][bb][part] = {}
-                        outDict['antband'][antIdx][rx][bb][part]['total'] = 0
-                        outDict['antband'][antIdx][rx][bb][part]['number'] = 0
+                        outDict["antband"][antIdx][rx][bb][part] = {}
+                        outDict["antband"][antIdx][rx][bb][part]["total"] = 0
+                        outDict["antband"][antIdx][rx][bb][part]["number"] = 0
                         for quan in quants:
-                            outDict['antband'][antIdx][rx][bb][part][quan] = {}
+                            outDict["antband"][antIdx][rx][bb][part][quan] = {}
                             for val in vals:
-                                outDict['antband'][antIdx][rx][bb][part][quan][val] = 0.0
+                                outDict["antband"][antIdx][rx][bb][part][quan][
+                                    val
+                                ] = 0.0
             else:
-                outDict['antband'][antIdx][rx] = {}
-                outDict['antband'][antIdx][rx][bb] = {}
+                outDict["antband"][antIdx][rx] = {}
+                outDict["antband"][antIdx][rx][bb] = {}
                 for part in parts:
-                    outDict['antband'][antIdx][rx][bb][part] = {}
-                    outDict['antband'][antIdx][rx][bb][part]['total'] = 0
-                    outDict['antband'][antIdx][rx][bb][part]['number'] = 0
+                    outDict["antband"][antIdx][rx][bb][part] = {}
+                    outDict["antband"][antIdx][rx][bb][part]["total"] = 0
+                    outDict["antband"][antIdx][rx][bb][part]["number"] = 0
                     for quan in quants:
-                        outDict['antband'][antIdx][rx][bb][part][quan] = {}
+                        outDict["antband"][antIdx][rx][bb][part][quan] = {}
                         for val in vals:
-                            outDict['antband'][antIdx][rx][bb][part][quan][val] = 0.0
+                            outDict["antband"][antIdx][rx][bb][part][quan][val] = 0.0
 
         else:
-            outDict['antspw'][antIdx] = {}
-            outDict['antspw'][antIdx][spwIdx] = {}
+            outDict["antspw"][antIdx] = {}
+            outDict["antspw"][antIdx][spwIdx] = {}
             for poln in range(np):
-                outDict['antspw'][antIdx][spwIdx][poln] = {}
+                outDict["antspw"][antIdx][spwIdx][poln] = {}
                 for part in parts:
-                    outDict['antspw'][antIdx][spwIdx][poln][part] = {}
-                    outDict['antspw'][antIdx][spwIdx][poln][part]['total'] = 0
-                    outDict['antspw'][antIdx][spwIdx][poln][part]['number'] = 0
+                    outDict["antspw"][antIdx][spwIdx][poln][part] = {}
+                    outDict["antspw"][antIdx][spwIdx][poln][part]["total"] = 0
+                    outDict["antspw"][antIdx][spwIdx][poln][part]["number"] = 0
                     for quan in quants:
-                        outDict['antspw'][antIdx][spwIdx][poln][part][quan] = {}
+                        outDict["antspw"][antIdx][spwIdx][poln][part][quan] = {}
                         for val in vals:
-                            outDict['antspw'][antIdx][spwIdx][poln][part][quan][val] = 0.0
+                            outDict["antspw"][antIdx][spwIdx][poln][part][quan][
+                                val
+                            ] = 0.0
 
-            outDict['antband'][antIdx] = {}
-            outDict['antband'][antIdx][rx] = {}
-            outDict['antband'][antIdx][rx][bb] = {}
+            outDict["antband"][antIdx] = {}
+            outDict["antband"][antIdx][rx] = {}
+            outDict["antband"][antIdx][rx][bb] = {}
             for part in parts:
-                outDict['antband'][antIdx][rx][bb][part] = {}
-                outDict['antband'][antIdx][rx][bb][part]['total'] = 0
-                outDict['antband'][antIdx][rx][bb][part]['number'] = 0
+                outDict["antband"][antIdx][rx][bb][part] = {}
+                outDict["antband"][antIdx][rx][bb][part]["total"] = 0
+                outDict["antband"][antIdx][rx][bb][part]["number"] = 0
                 for quan in quants:
-                    outDict['antband'][antIdx][rx][bb][part][quan] = {}
+                    outDict["antband"][antIdx][rx][bb][part][quan] = {}
                     for val in vals:
-                        outDict['antband'][antIdx][rx][bb][part][quan][val] = 0.0
+                        outDict["antband"][antIdx][rx][bb][part][quan][val] = 0.0
 
         #
         # Sum up the in-row (per pol per chan) flags for this row
         nptotal = 0
-        npflagged = 0
         for poln in range(np):
             ntotal += 1
             nptotal += 1
@@ -2278,15 +2417,15 @@ def getBCalStatistics(calTable, innerbuff=0.1):
             ncgood = 0
             ncinnergood = 0
             for chan in range(nc):
-                outDict['antspw'][antIdx][spwIdx][poln]['all']['total'] += 1
-                outDict['antband'][antIdx][rx][bb]['all']['total'] += 1
+                outDict["antspw"][antIdx][spwIdx][poln]["all"]["total"] += 1
+                outDict["antband"][antIdx][rx][bb]["all"]["total"] += 1
                 #
                 fc = 1
-                if nc>0:
-                    fc = float(chan)/float(nc)
-                if fc>=fcrange[0] and fc<fcrange[1]:
-                    outDict['antspw'][antIdx][spwIdx][poln]['inner']['total'] += 1
-                    outDict['antband'][antIdx][rx][bb]['inner']['total'] += 1
+                if nc > 0:
+                    fc = float(chan) / float(nc)
+                if fc >= fcrange[0] and fc < fcrange[1]:
+                    outDict["antspw"][antIdx][spwIdx][poln]["inner"]["total"] += 1
+                    outDict["antband"][antIdx][rx][bb]["inner"]["total"] += 1
                 #
                 if flagArr[poln][chan][iid]:
                     # a flagged data point
@@ -2295,146 +2434,255 @@ def getBCalStatistics(calTable, innerbuff=0.1):
                     cx = dataArr[poln][chan][iid]
                     # get quantities from complex data
                     ampx = numpy.absolute(cx)
-                    phasx = numpy.angle(cx,deg=True)
+                    phasx = numpy.angle(cx, deg=True)
                     realx = numpy.real(cx)
                     imagx = numpy.imag(cx)
                     #
                     # put in dictionary
                     cdict = {}
-                    cdict['amp'] = ampx
-                    cdict['phase'] = phasx
-                    cdict['real'] = realx
-                    cdict['imag'] = imagx
+                    cdict["amp"] = ampx
+                    cdict["phase"] = phasx
+                    cdict["real"] = realx
+                    cdict["imag"] = imagx
                     # an unflagged data point
                     ncgood += 1
                     # Data stats
                     # By antspw per poln
-                    nx = outDict['antspw'][antIdx][spwIdx][poln]['all']['number']
-                    if nx==0:
-                        outDict['antspw'][antIdx][spwIdx][poln]['all']['number'] = 1
+                    nx = outDict["antspw"][antIdx][spwIdx][poln]["all"]["number"]
+                    if nx == 0:
+                        outDict["antspw"][antIdx][spwIdx][poln]["all"]["number"] = 1
                         for quan in quants:
                             for val in vals:
-                                outDict['antspw'][antIdx][spwIdx][poln]['all'][quan][val] = cdict[quan]
+                                outDict["antspw"][antIdx][spwIdx][poln]["all"][quan][
+                                    val
+                                ] = cdict[quan]
                     else:
                         for quan in quants:
                             vx = cdict[quan]
-                            if vx>outDict['antspw'][antIdx][spwIdx][poln]['all'][quan]['max']:
-                                outDict['antspw'][antIdx][spwIdx][poln]['all'][quan]['max'] = vx
-                            if vx<outDict['antspw'][antIdx][spwIdx][poln]['all'][quan]['min']:
-                                outDict['antspw'][antIdx][spwIdx][poln]['all'][quan]['min'] = vx
+                            if (
+                                vx
+                                > outDict["antspw"][antIdx][spwIdx][poln]["all"][quan][
+                                    "max"
+                                ]
+                            ):
+                                outDict["antspw"][antIdx][spwIdx][poln]["all"][quan][
+                                    "max"
+                                ] = vx
+                            if (
+                                vx
+                                < outDict["antspw"][antIdx][spwIdx][poln]["all"][quan][
+                                    "min"
+                                ]
+                            ):
+                                outDict["antspw"][antIdx][spwIdx][poln]["all"][quan][
+                                    "min"
+                                ] = vx
                             # Running mean(n+1) = mean(n) + (x(n+1)-mean(n))/(n+1)
-                            meanx = outDict['antspw'][antIdx][spwIdx][poln]['all'][quan]['mean']
-                            runx = meanx + (vx - meanx)/float(nx+1)
-                            outDict['antspw'][antIdx][spwIdx][poln]['all'][quan]['mean'] = runx
+                            meanx = outDict["antspw"][antIdx][spwIdx][poln]["all"][
+                                quan
+                            ]["mean"]
+                            runx = meanx + (vx - meanx) / float(nx + 1)
+                            outDict["antspw"][antIdx][spwIdx][poln]["all"][quan][
+                                "mean"
+                            ] = runx
                             # Running var(n+1) = {n*var(n)+[x(n+1)-mean(n)][x(n+1)-mean(n+1)]}/(n+1)
-                            varx = outDict['antspw'][antIdx][spwIdx][poln]['all'][quan]['var']
-                            qx = nx*varx + (vx-meanx)*(vx-runx)
-                            outDict['antspw'][antIdx][spwIdx][poln]['all'][quan]['var'] = qx/float(nx+1)
-                    outDict['antspw'][antIdx][spwIdx][poln]['all']['number'] += 1
+                            varx = outDict["antspw"][antIdx][spwIdx][poln]["all"][quan][
+                                "var"
+                            ]
+                            qx = nx * varx + (vx - meanx) * (vx - runx)
+                            outDict["antspw"][antIdx][spwIdx][poln]["all"][quan][
+                                "var"
+                            ] = qx / float(nx + 1)
+                    outDict["antspw"][antIdx][spwIdx][poln]["all"]["number"] += 1
                     # Now the rx-band stats
-                    ny = outDict['antband'][antIdx][rx][bb]['all']['number']
-                    if ny==0:
-                        outDict['antband'][antIdx][rx][bb]['all']['number'] = 1
+                    ny = outDict["antband"][antIdx][rx][bb]["all"]["number"]
+                    if ny == 0:
+                        outDict["antband"][antIdx][rx][bb]["all"]["number"] = 1
                         for quan in quants:
                             for val in vals:
-                                outDict['antband'][antIdx][rx][bb]['all'][quan][val] = cdict[quan]
+                                outDict["antband"][antIdx][rx][bb]["all"][quan][val] = (
+                                    cdict[quan]
+                                )
                     else:
                         for quan in quants:
                             vy = cdict[quan]
-                            if vy>outDict['antband'][antIdx][rx][bb]['all'][quan]['max']:
-                                outDict['antband'][antIdx][rx][bb]['all'][quan]['max'] = vy
-                            if vy<outDict['antband'][antIdx][rx][bb]['all'][quan]['min']:
-                                outDict['antband'][antIdx][rx][bb]['all'][quan]['min'] = vy
+                            if (
+                                vy
+                                > outDict["antband"][antIdx][rx][bb]["all"][quan]["max"]
+                            ):
+                                outDict["antband"][antIdx][rx][bb]["all"][quan][
+                                    "max"
+                                ] = vy
+                            if (
+                                vy
+                                < outDict["antband"][antIdx][rx][bb]["all"][quan]["min"]
+                            ):
+                                outDict["antband"][antIdx][rx][bb]["all"][quan][
+                                    "min"
+                                ] = vy
                             # Running mean(n+1) = mean(n) + (x(n+1)-mean(n))/(n+1)
-                            meany = outDict['antband'][antIdx][rx][bb]['all'][quan]['mean']
-                            runy = meany + (vy - meany)/float(ny+1)
-                            outDict['antband'][antIdx][rx][bb]['all'][quan]['mean'] = runy
+                            meany = outDict["antband"][antIdx][rx][bb]["all"][quan][
+                                "mean"
+                            ]
+                            runy = meany + (vy - meany) / float(ny + 1)
+                            outDict["antband"][antIdx][rx][bb]["all"][quan][
+                                "mean"
+                            ] = runy
                             # Running var(n+1) = {n*var(n)+[x(n+1)-mean(n)][x(n+1)-mean(n+1)]}/(n+1)
-                            vary = outDict['antband'][antIdx][rx][bb]['all'][quan]['var']
-                            qy = ny*vary + (vy-meany)*(vy-runy)
-                            outDict['antband'][antIdx][rx][bb]['all'][quan]['var'] = qy/float(ny+1)
-                        outDict['antband'][antIdx][rx][bb]['all']['number'] += 1
+                            vary = outDict["antband"][antIdx][rx][bb]["all"][quan][
+                                "var"
+                            ]
+                            qy = ny * vary + (vy - meany) * (vy - runy)
+                            outDict["antband"][antIdx][rx][bb]["all"][quan]["var"] = (
+                                qy / float(ny + 1)
+                            )
+                        outDict["antband"][antIdx][rx][bb]["all"]["number"] += 1
                     #
-                    if fc>=fcrange[0] and fc<fcrange[1]:
+                    if fc >= fcrange[0] and fc < fcrange[1]:
                         # this chan lies in the "inner" part of the spw
                         ncinnergood += 1
                         # Data stats
                         # By antspw per poln
-                        nx = outDict['antspw'][antIdx][spwIdx][poln]['inner']['number']
-                        if nx==0:
-                            outDict['antspw'][antIdx][spwIdx][poln]['inner']['number'] = 1
+                        nx = outDict["antspw"][antIdx][spwIdx][poln]["inner"]["number"]
+                        if nx == 0:
+                            outDict["antspw"][antIdx][spwIdx][poln]["inner"][
+                                "number"
+                            ] = 1
                             for quan in quants:
                                 for val in vals:
-                                    outDict['antspw'][antIdx][spwIdx][poln]['inner'][quan][val] = cdict[quan]
+                                    outDict["antspw"][antIdx][spwIdx][poln]["inner"][
+                                        quan
+                                    ][val] = cdict[quan]
                         else:
                             for quan in quants:
                                 vx = cdict[quan]
-                                if vx>outDict['antspw'][antIdx][spwIdx][poln]['inner'][quan]['max']:
-                                    outDict['antspw'][antIdx][spwIdx][poln]['inner'][quan]['max'] = vx
-                                if vx<outDict['antspw'][antIdx][spwIdx][poln]['inner'][quan]['min']:
-                                    outDict['antspw'][antIdx][spwIdx][poln]['inner'][quan]['min'] = vx
+                                if (
+                                    vx
+                                    > outDict["antspw"][antIdx][spwIdx][poln]["inner"][
+                                        quan
+                                    ]["max"]
+                                ):
+                                    outDict["antspw"][antIdx][spwIdx][poln]["inner"][
+                                        quan
+                                    ]["max"] = vx
+                                if (
+                                    vx
+                                    < outDict["antspw"][antIdx][spwIdx][poln]["inner"][
+                                        quan
+                                    ]["min"]
+                                ):
+                                    outDict["antspw"][antIdx][spwIdx][poln]["inner"][
+                                        quan
+                                    ]["min"] = vx
                                 # Running mean(n+1) = mean(n) + (x(n+1)-mean(n))/(n+1)
-                                meanx = outDict['antspw'][antIdx][spwIdx][poln]['inner'][quan]['mean']
-                                runx = meanx + (vx - meanx)/float(nx+1)
-                                outDict['antspw'][antIdx][spwIdx][poln]['inner'][quan]['mean'] = runx
+                                meanx = outDict["antspw"][antIdx][spwIdx][poln][
+                                    "inner"
+                                ][quan]["mean"]
+                                runx = meanx + (vx - meanx) / float(nx + 1)
+                                outDict["antspw"][antIdx][spwIdx][poln]["inner"][quan][
+                                    "mean"
+                                ] = runx
                                 # Running var(n+1) = {n*var(n)+[x(n+1)-mean(n)][x(n+1)-mean(n+1)]}/(n+1)
-                                varx = outDict['antspw'][antIdx][spwIdx][poln]['inner'][quan]['var']
-                                qx = nx*varx + (vx-meanx)*(vx-runx)
-                                outDict['antspw'][antIdx][spwIdx][poln]['inner'][quan]['var'] = qx/float(nx+1)
-                                outDict['antspw'][antIdx][spwIdx][poln]['inner']['number'] += 1
+                                varx = outDict["antspw"][antIdx][spwIdx][poln]["inner"][
+                                    quan
+                                ]["var"]
+                                qx = nx * varx + (vx - meanx) * (vx - runx)
+                                outDict["antspw"][antIdx][spwIdx][poln]["inner"][quan][
+                                    "var"
+                                ] = qx / float(nx + 1)
+                                outDict["antspw"][antIdx][spwIdx][poln]["inner"][
+                                    "number"
+                                ] += 1
                         # Now the rx-band stats
-                        ny = outDict['antband'][antIdx][rx][bb]['inner']['number']
-                        if ny==0:
-                            outDict['antband'][antIdx][rx][bb]['inner']['number'] = 1
+                        ny = outDict["antband"][antIdx][rx][bb]["inner"]["number"]
+                        if ny == 0:
+                            outDict["antband"][antIdx][rx][bb]["inner"]["number"] = 1
                             for quan in quants:
                                 for val in vals:
-                                    outDict['antband'][antIdx][rx][bb]['inner'][quan][val] = cdict[quan]
+                                    outDict["antband"][antIdx][rx][bb]["inner"][quan][
+                                        val
+                                    ] = cdict[quan]
                         else:
                             for quan in quants:
                                 vy = cdict[quan]
-                                if vy>outDict['antband'][antIdx][rx][bb]['inner'][quan]['max']:
-                                    outDict['antband'][antIdx][rx][bb]['inner'][quan]['max'] = vy
-                                if vy<outDict['antband'][antIdx][rx][bb]['inner'][quan]['min']:
-                                    outDict['antband'][antIdx][rx][bb]['inner'][quan]['min'] = vy
+                                if (
+                                    vy
+                                    > outDict["antband"][antIdx][rx][bb]["inner"][quan][
+                                        "max"
+                                    ]
+                                ):
+                                    outDict["antband"][antIdx][rx][bb]["inner"][quan][
+                                        "max"
+                                    ] = vy
+                                if (
+                                    vy
+                                    < outDict["antband"][antIdx][rx][bb]["inner"][quan][
+                                        "min"
+                                    ]
+                                ):
+                                    outDict["antband"][antIdx][rx][bb]["inner"][quan][
+                                        "min"
+                                    ] = vy
                                 # Running mean(n+1) = mean(n) + (x(n+1)-mean(n))/(n+1)
-                                meany = outDict['antband'][antIdx][rx][bb]['inner'][quan]['mean']
-                                runy = meany + (vy - meany)/float(ny+1)
-                                outDict['antband'][antIdx][rx][bb]['inner'][quan]['mean'] = runy
+                                meany = outDict["antband"][antIdx][rx][bb]["inner"][
+                                    quan
+                                ]["mean"]
+                                runy = meany + (vy - meany) / float(ny + 1)
+                                outDict["antband"][antIdx][rx][bb]["inner"][quan][
+                                    "mean"
+                                ] = runy
                                 # Running var(n+1) = {n*var(n)+[x(n+1)-mean(n)][x(n+1)-mean(n+1)]}/(n+1)
-                                vary = outDict['antband'][antIdx][rx][bb]['inner'][quan]['var']
-                                qy = ny*vary + (vy-meany)*(vy-runy)
-                                outDict['antband'][antIdx][rx][bb]['inner'][quan]['var'] = qy/float(ny+1)
-                            outDict['antband'][antIdx][rx][bb]['inner']['number'] += 1
+                                vary = outDict["antband"][antIdx][rx][bb]["inner"][
+                                    quan
+                                ]["var"]
+                                qy = ny * vary + (vy - meany) * (vy - runy)
+                                outDict["antband"][antIdx][rx][bb]["inner"][quan][
+                                    "var"
+                                ] = qy / float(ny + 1)
+                            outDict["antband"][antIdx][rx][bb]["inner"]["number"] += 1
 
-
-            npflagged = float(ncflagged)/float(nc)
-            nflagged += float(ncflagged)/float(nc)
+            float(ncflagged) / float(nc)
+            nflagged += float(ncflagged) / float(nc)
             ngood += ncgood
             ninnergood += ncinnergood
 
     # Assemble rest of dictionary
-    outDict['antDict'] = antDict
-    outDict['spwDict'] = spwDict
-    outDict['rxBasebandDict'] = rxBasebandDict
+    outDict["antDict"] = antDict
+    outDict["spwDict"] = spwDict
+    outDict["rxBasebandDict"] = rxBasebandDict
 
     # Print summary
-    print('Within all channels:')
-    print('Found '+str(ntotal)+' total solutions with '+str(ngood)+' good (unflagged)')
-    print('Within inner '+str(fcrange[1]-fcrange[0])+' of channels:')
-    print('Found '+str(ninner)+' total solutions with '+str(ninnergood)+' good (unflagged)')
-    print('')
-    print('        AntID      AntName      Rx-band      Baseband    min/max(all)  min/max(inner) ALERT?')
+    print("Within all channels:")
+    print(
+        "Found "
+        + str(ntotal)
+        + " total solutions with "
+        + str(ngood)
+        + " good (unflagged)"
+    )
+    print("Within inner " + str(fcrange[1] - fcrange[0]) + " of channels:")
+    print(
+        "Found "
+        + str(ninner)
+        + " total solutions with "
+        + str(ninnergood)
+        + " good (unflagged)"
+    )
+    print("")
+    print(
+        "        AntID      AntName      Rx-band      Baseband    min/max(all)  min/max(inner) ALERT?"
+    )
     #
     # Print more?
     if doprintall:
-        for ant in outDict['antband'].keys():
+        for ant in outDict["antband"].keys():
             antName = antDict[ant]
-            for rx in outDict['antband'][ant].keys():
-                for bb in outDict['antband'][ant][rx].keys():
-                    xmin = outDict['antband'][ant][rx][bb]['all']['amp']['min']
-                    xmax = outDict['antband'][ant][rx][bb]['all']['amp']['max']
-                    ymin = outDict['antband'][ant][rx][bb]['inner']['amp']['min']
-                    ymax = outDict['antband'][ant][rx][bb]['inner']['amp']['max']
+            for rx in outDict["antband"][ant].keys():
+                for bb in outDict["antband"][ant][rx].keys():
+                    xmin = outDict["antband"][ant][rx][bb]["all"]["amp"]["min"]
+                    xmax = outDict["antband"][ant][rx][bb]["all"]["amp"]["max"]
+                    ymin = outDict["antband"][ant][rx][bb]["inner"]["amp"]["min"]
+                    ymax = outDict["antband"][ant][rx][bb]["inner"]["amp"]["max"]
                     if xmax != 0.0:
                         xrat = xmin / xmax
                     else:
@@ -2445,13 +2693,23 @@ def getBCalStatistics(calTable, innerbuff=0.1):
                         yrat = -1
                     #
                     if yrat < 0.05:
-                        print(' %12s %12s %12s %12s  %12.4f  %12.4f *** ' % (ant,antName,rx,bb,xrat,yrat))
+                        print(
+                            " %12s %12s %12s %12s  %12.4f  %12.4f *** "
+                            % (ant, antName, rx, bb, xrat, yrat)
+                        )
                     elif yrat < 0.1:
-                        print(' %12s %12s %12s %12s  %12.4f  %12.4f ** ' % (ant,antName,rx,bb,xrat,yrat))
+                        print(
+                            " %12s %12s %12s %12s  %12.4f  %12.4f ** "
+                            % (ant, antName, rx, bb, xrat, yrat)
+                        )
                     elif yrat < 0.2:
-                        print(' %12s %12s %12s %12s  %12.4f  %12.4f * ' % (ant,antName,rx,bb,xrat,yrat))
+                        print(
+                            " %12s %12s %12s %12s  %12.4f  %12.4f * "
+                            % (ant, antName, rx, bb, xrat, yrat)
+                        )
                     else:
-                        print(' %12s %12s %12s %12s  %12.4f  %12.4f ' % (ant,antName,rx,bb,xrat,yrat))
+                        print(
+                            " %12s %12s %12s %12s  %12.4f  %12.4f "
+                            % (ant, antName, rx, bb, xrat, yrat)
+                        )
     return outDict
-
-

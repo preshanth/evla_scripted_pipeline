@@ -1,15 +1,18 @@
 # plot_test_gains.py
 
-from casatasks import rmtables
-from casatools import table
-from evla_pipe.plotting import plotms
-import numpy as np
 import os
+
+import numpy as np
+from casatools import table
+
+from evla_pipe.plotting import plotms
 
 tb = table()
 
+
 def task_logprint(msg):
     logprint(msg, logfileout="logs/testgains_plot.log")
+
 
 def plot_test_gain_solutions(pipeline_context, nplots):
     """
@@ -36,13 +39,17 @@ def plot_test_gain_solutions(pipeline_context, nplots):
             if np.any(amps[good]):
                 maxamp = np.max(amps[good])
             else:
-                task_logprint("WARNING: No unflagged amplitude data found in testgaincal.g for plotting range.")
+                task_logprint(
+                    "WARNING: No unflagged amplitude data found in testgaincal.g for plotting range."
+                )
         except Exception as e:
             task_logprint(f"Error opening or reading testgaincal.g: {e}")
         finally:
             tb.close()
     else:
-        task_logprint("WARNING: testgaincal.g not found, using default amplitude plot range.")
+        task_logprint(
+            "WARNING: testgaincal.g not found, using default amplitude plot range."
+        )
 
     # Plot time vs amplitude for gain solutions.
     task_logprint("Plotting amplitude gain solutions.")
@@ -60,7 +67,7 @@ def plot_test_gain_solutions(pipeline_context, nplots):
             gridrows=3,
             coloraxis="spw",
             iteraxis="antenna",
-            plotrange=[0, 0, 0, maxamp * 1.1], # Add a small buffer to the max
+            plotrange=[0, 0, 0, maxamp * 1.1],  # Add a small buffer to the max
             showgui=False,
             plotfile=plotfile,
             highres=True,

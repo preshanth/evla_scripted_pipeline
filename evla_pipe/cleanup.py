@@ -12,57 +12,55 @@ Usage:
     >>> cleanup_pipeline_products('.', remove_ms=False)
 """
 
-import os
 import shutil
 from pathlib import Path
-from typing import List, Tuple, Optional
-
+from typing import List, Tuple
 
 # Pipeline-generated directories
 PIPELINE_DIRECTORIES = [
-    'logs',
-    'pipeline_context',
-    'final_caltables',
-    'intermediate_caltables',
-    'test_caltables',
-    'plots',
-    'weblog',
-    'measurement_sets',
-    'pipeline_backups',
+    "logs",
+    "pipeline_context",
+    "final_caltables",
+    "intermediate_caltables",
+    "test_caltables",
+    "plots",
+    "weblog",
+    "measurement_sets",
+    "pipeline_backups",
 ]
 
 # Pipeline-generated file patterns (glob patterns)
 PIPELINE_FILE_PATTERNS = [
-    '*.flagversions',
-    '*.log',
-    '*.last',
-    '*.restored',
-    'pipeline_state.json',
-    'calibrators.ms',
-    '*.flagonline.txt',
+    "*.flagversions",
+    "*.log",
+    "*.last",
+    "*.restored",
+    "pipeline_state.json",
+    "calibrators.ms",
+    "*.flagonline.txt",
 ]
 
 # Calibration table patterns
 CALTABLE_PATTERNS = [
-    '*.cal',
-    '*.gcal',
-    '*.bcal',
-    '*.kcal',
-    '*.Df',
-    '*.Xf',
-    '*.testBPcal.*',
-    '*.testdelay*',
-    '*.testBPdinitialgain*',
-    '*.testgain*',
-    '*.semiFinaldelayinitialgain*',
-    '*.semiFinaldelay*',
-    '*.semiFinalBPinitialgain*',
-    '*.semiFinalBP*',
-    '*.averagephasegain*',
-    '*.finalampgaincal*',
-    '*.finalphasegaincal*',
-    '*.finalBPcal*',
-    '*.finaldelay*',
+    "*.cal",
+    "*.gcal",
+    "*.bcal",
+    "*.kcal",
+    "*.Df",
+    "*.Xf",
+    "*.testBPcal.*",
+    "*.testdelay*",
+    "*.testBPdinitialgain*",
+    "*.testgain*",
+    "*.semiFinaldelayinitialgain*",
+    "*.semiFinaldelay*",
+    "*.semiFinalBPinitialgain*",
+    "*.semiFinalBP*",
+    "*.averagephasegain*",
+    "*.finalampgaincal*",
+    "*.finalphasegaincal*",
+    "*.finalBPcal*",
+    "*.finaldelay*",
 ]
 
 
@@ -84,7 +82,7 @@ def get_measurement_sets(directory: Path) -> List[Path]:
 
     # Look for .ms directories
     for item in directory.iterdir():
-        if item.is_dir() and item.suffix == '.ms':
+        if item.is_dir() and item.suffix == ".ms":
             ms_list.append(item)
 
     return ms_list
@@ -127,11 +125,11 @@ def remove_path(path: Path, dry_run: bool = False) -> Tuple[bool, str]:
 
 
 def cleanup_pipeline_products(
-    directory: str = '.',
+    directory: str = ".",
     remove_ms: bool = False,
     remove_caltables: bool = True,
     dry_run: bool = False,
-    verbose: bool = True
+    verbose: bool = True,
 ) -> Tuple[int, int]:
     """
     Clean up pipeline-generated files and directories.
@@ -262,44 +260,40 @@ Examples:
   %(prog)s /path/to/data      # Clean specific directory
   %(prog)s --all              # Remove everything including MS
   %(prog)s --no-caltables     # Keep calibration tables
-        """
+        """,
     )
 
     parser.add_argument(
-        'directory',
-        nargs='?',
-        default='.',
-        help='Directory to clean (default: current directory)'
+        "directory",
+        nargs="?",
+        default=".",
+        help="Directory to clean (default: current directory)",
     )
 
     parser.add_argument(
-        '--ms',
-        action='store_true',
-        help='Also remove measurement sets (.ms directories)'
+        "--ms",
+        action="store_true",
+        help="Also remove measurement sets (.ms directories)",
     )
 
     parser.add_argument(
-        '--all',
-        action='store_true',
-        help='Remove everything including measurement sets (same as --ms)'
+        "--all",
+        action="store_true",
+        help="Remove everything including measurement sets (same as --ms)",
     )
 
     parser.add_argument(
-        '--no-caltables',
-        action='store_true',
-        help='Do not remove calibration tables'
+        "--no-caltables", action="store_true", help="Do not remove calibration tables"
     )
 
     parser.add_argument(
-        '--dry-run',
-        action='store_true',
-        help='Show what would be deleted without actually deleting'
+        "--dry-run",
+        action="store_true",
+        help="Show what would be deleted without actually deleting",
     )
 
     parser.add_argument(
-        '--quiet',
-        action='store_true',
-        help='Only show summary, not individual files'
+        "--quiet", action="store_true", help="Only show summary, not individual files"
     )
 
     args = parser.parse_args()
@@ -316,7 +310,7 @@ Examples:
         remove_ms=remove_ms,
         remove_caltables=remove_caltables,
         dry_run=args.dry_run,
-        verbose=not args.quiet
+        verbose=not args.quiet,
     )
 
     # Exit with error code if any failed
@@ -326,5 +320,5 @@ Examples:
         exit(0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

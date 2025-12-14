@@ -1,13 +1,15 @@
 # evaluate_gain_flags.py
 
-from casatasks import rmtables
 from casatools import table
-from evla_pipe.utils import (logprint, runtiming, getCalFlaggedSoln)
+
+from evla_pipe.utils import getCalFlaggedSoln, logprint, runtiming
 
 tb = table()
 
+
 def task_logprint(msg):
     logprint(msg, logfileout="logs/testgains_qa.log")
+
 
 def evaluate_test_gain_flags():
     """

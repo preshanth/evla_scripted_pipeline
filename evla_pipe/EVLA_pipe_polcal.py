@@ -12,9 +12,11 @@ the polarization calibration tables can be included in the calibration
 application.
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
+
 from casatasks import gaincal, polcal
-from evla_pipe.utils import runtiming, logprint, get_log_path, get_caltable_path
+
+from evla_pipe.utils import get_caltable_path, get_log_path, logprint, runtiming
 
 
 def task_logprint(msg: str) -> None:
@@ -115,7 +117,9 @@ def polcal(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     pol_angle_field, pol_leakage_field = _get_polarization_calibrators(pipeline_context)
 
     if pol_angle_field is None or pol_leakage_field is None:
-        task_logprint("WARNING: No polarization calibrators found, skipping polarization calibration")
+        task_logprint(
+            "WARNING: No polarization calibrators found, skipping polarization calibration"
+        )
         QA2_polcal = "Partial"
         pipeline_context["QA2_polcal"] = QA2_polcal
         pipeline_context["time_list"] = time_list
@@ -129,7 +133,7 @@ def polcal(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
             ms_active=ms_active,
             pol_angle_field=pol_angle_field,
             refant=refant,
-            priorcals=priorcals
+            priorcals=priorcals,
         )
         pipeline_context["kcross_cal_table"] = kcross_table
 
@@ -138,7 +142,7 @@ def polcal(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
             ms_active=ms_active,
             pol_leakage_field=pol_leakage_field,
             priorcals=priorcals,
-            kcross_table=kcross_table
+            kcross_table=kcross_table,
         )
         pipeline_context["dterms_cal_table"] = dterms_table
 
@@ -160,6 +164,7 @@ def polcal(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
 
     # Import colored output function
     from evla_pipe.utils import format_qa_status
+
     task_logprint(f"QA2 score: {format_qa_status(QA2_polcal)}")
 
     time_list = runtiming("polcal", "end")
@@ -209,7 +214,7 @@ def _build_prior_calibrations(pipeline_context: Dict[str, Any]) -> List[str]:
 
 
 def _get_polarization_calibrators(
-    pipeline_context: Dict[str, Any]
+    pipeline_context: Dict[str, Any],
 ) -> tuple[Optional[int], Optional[int]]:
     """
     Get or auto-detect polarization calibrator field IDs.
@@ -229,11 +234,15 @@ def _get_polarization_calibrators(
 
     # If already specified, return them
     if pol_angle_field is not None and pol_leakage_field is not None:
-        task_logprint(f"Using specified polarization calibrators: angle={pol_angle_field}, leakage={pol_leakage_field}")
+        task_logprint(
+            f"Using specified polarization calibrators: angle={pol_angle_field}, leakage={pol_leakage_field}"
+        )
         return pol_angle_field, pol_leakage_field
 
     # Auto-detect from standard calibrators
-    standard_source_names = pipeline_context.get("standard_source_names", ["3C48", "3C138", "3C147", "3C286"])
+    standard_source_names = pipeline_context.get(
+        "standard_source_names", ["3C48", "3C138", "3C147", "3C286"]
+    )
     field_names = pipeline_context.get("field_names", [])
 
     pol_angle_field = None
@@ -249,16 +258,15 @@ def _get_polarization_calibrators(
             if pol_leakage_field is None:
                 pol_leakage_field = i
 
-    task_logprint(f"Auto-detected polarization calibrators: angle={pol_angle_field}, leakage={pol_leakage_field}")
+    task_logprint(
+        f"Auto-detected polarization calibrators: angle={pol_angle_field}, leakage={pol_leakage_field}"
+    )
 
     return pol_angle_field, pol_leakage_field
 
 
 def _perform_kcross_calibration(
-    ms_active: str,
-    pol_angle_field: int,
-    refant: str,
-    priorcals: List[str]
+    ms_active: str, pol_angle_field: int, refant: str, priorcals: List[str]
 ) -> str:
     """
     Perform cross-hand delay calibration (Xf).
@@ -308,7 +316,7 @@ def _perform_kcross_calibration(
         gainfield=[],
         interp=[],
         spwmap=[],
-        parang=True
+        parang=True,
     )
 
     task_logprint(f"Cross-hand delay calibration completed: {kcross_table}")
@@ -316,10 +324,7 @@ def _perform_kcross_calibration(
 
 
 def _perform_dterms_calibration(
-    ms_active: str,
-    pol_leakage_field: int,
-    priorcals: List[str],
-    kcross_table: str
+    ms_active: str, pol_leakage_field: int, priorcals: List[str], kcross_table: str
 ) -> str:
     """
     Perform D-term leakage calibration (Df).
@@ -370,7 +375,7 @@ def _perform_dterms_calibration(
         gainfield=[],
         interp=[],
         spwmap=[],
-        parang=True
+        parang=True,
     )
 
     task_logprint(f"D-term leakage calibration completed: {dterms_table}")

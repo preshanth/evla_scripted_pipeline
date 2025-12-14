@@ -1,26 +1,36 @@
 # plot_testBPdcals.py (Separate plotting script - Continued)
 
 import os
-from evla_pipe.plotting import plotms
-from casatools import table
-from evla_pipe.utils import runtiming, logprint
+
 import numpy as np
+from casatools import table
+
+from evla_pipe.plotting import plotms
+from evla_pipe.utils import logprint, runtiming
+
 
 def task_logprint(msg):
     logprint(msg, logfileout="logs/testBPdcals_plots.log")
+
 
 def plot_test_bandpass_and_delay(pipeline_context):
     """
     Plots the results of the test bandpass and delay calibration.
     """
-    task_logprint("*** Starting plotting test bandpass and delay calibration results ***")
-    time_list = runtiming("testBPdcals_plot", "start")
+    task_logprint(
+        "*** Starting plotting test bandpass and delay calibration results ***"
+    )
+    runtiming("testBPdcals_plot", "start")
 
     ms_active = pipeline_context.get("msname")
     numAntenna = pipeline_context.get("numAntenna", 0)
-    corrstring = pipeline_context.get("corrstring", "RR,LL") # Provide a default
-    bandpass_field_select_string = pipeline_context.get("bandpass_field_select_string", "")
-    bandpass_scan_select_string = pipeline_context.get("bandpass_scan_select_string", "")
+    corrstring = pipeline_context.get("corrstring", "RR,LL")  # Provide a default
+    bandpass_field_select_string = pipeline_context.get(
+        "bandpass_field_select_string", ""
+    )
+    bandpass_scan_select_string = pipeline_context.get(
+        "bandpass_scan_select_string", ""
+    )
     delay_scan_select_string = pipeline_context.get("delay_scan_select_string", "")
 
     nplots = int(numAntenna / 3) + (1 if (numAntenna % 3) > 0 else 0)
@@ -239,4 +249,4 @@ def plot_test_bandpass_and_delay(pipeline_context):
         task_logprint("Plotting calibrated delay calibrator complete")
 
     task_logprint("Finished plotting test bandpass and delay calibration results")
-    time_list = runtiming("testBPdcals_plot", "end")
+    runtiming("testBPdcals_plot", "end")

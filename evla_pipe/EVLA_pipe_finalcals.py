@@ -9,19 +9,20 @@ This module performs the final calibration steps including:
 - Power-law fitting of flux densities
 """
 
-from typing import Dict, Any, List, Tuple, Optional
 import os
+from typing import Any, Dict, List, Tuple
+
 import numpy as np
 import scipy as sp
-from casatasks import rmtables, gaincal, bandpass, setjy, fluxscale, casalog
+from casatasks import bandpass, casalog, fluxscale, gaincal, rmtables, setjy
 from casatools import table
 
 from evla_pipe.utils import (
+    MAINLOG,
+    find_EVLA_band,
+    getCalFlaggedSoln,
     logprint,
     runtiming,
-    getCalFlaggedSoln,
-    find_EVLA_band,
-    MAINLOG,
 )
 
 tb = table()
@@ -58,7 +59,9 @@ def _fitfunc(p: List[float], x: np.ndarray) -> np.ndarray:
     return p[0] + p[1] * x
 
 
-def _errfunc(p: List[float], x: np.ndarray, y: np.ndarray, err: np.ndarray) -> np.ndarray:
+def _errfunc(
+    p: List[float], x: np.ndarray, y: np.ndarray, err: np.ndarray
+) -> np.ndarray:
     """
     Error function for least squares fitting.
 
@@ -201,10 +204,7 @@ def fit_flux_power_law(
         indices = np.argwhere(np.array(sources) == source).squeeze(axis=1)
 
         # Group by band
-        bands = [
-            find_EVLA_band(center_frequencies.get(spws[i], 0.0))
-            for i in indices
-        ]
+        bands = [find_EVLA_band(center_frequencies.get(spws[i], 0.0)) for i in indices]
 
         for band in np.unique(bands):
             lfreqs = []
@@ -282,11 +282,11 @@ def fit_flux_power_law(
                 err_exp = 10 ** lfds[ii]
                 SS = fluxdensity * (flux_exp / reffreq) ** spix
                 fderr = (
-                    lerrs[ii] * err_exp / np.log10(np.e)
-                    if np.log10(np.e) != 0
-                    else 0.0
+                    lerrs[ii] * err_exp / np.log10(np.e) if np.log10(np.e) != 0 else 0.0
                 )
-                task_logprint(f"    {flux_exp:.3f} {10**lfds[ii]:.3f} {fderr:.3f} {SS:.3f}")
+                task_logprint(
+                    f"    {flux_exp:.3f} {10**lfds[ii]:.3f} {fderr:.3f} {SS:.3f}"
+                )
 
     return results
 
@@ -815,7 +815,9 @@ def finalcals(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     from evla_pipe.utils import format_qa_status
 
     task_logprint("*** Finished Final Calibrations ***")
-    task_logprint(f"QA2 score: {format_qa_status(pipeline_context.get('QA2_finalcals', 'Fail'))}")
+    task_logprint(
+        f"QA2 score: {format_qa_status(pipeline_context.get('QA2_finalcals', 'Fail'))}"
+    )
 
     time_list = runtiming("finalcals", "end")
     pipeline_context["time_list"] = time_list

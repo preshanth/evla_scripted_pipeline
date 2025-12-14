@@ -1,0 +1,37 @@
+name: CI - Lightweight tests
+
+on:
+  push:
+    branches: [ main, fullrefactor ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: [3.10, 3.12]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install minimal deps and package
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -c constraints.txt protobuf==3.20.3
+          python -m pip install -e .
+
+      - name: Install test-only deps
+        run: |
+          python -m pip install pytest
+
+      - name: Run lightweight tests
+        run: |
+          # Run lightweight unit tests that do not require CASA
+          pytest -q test/test_simple_utils.py

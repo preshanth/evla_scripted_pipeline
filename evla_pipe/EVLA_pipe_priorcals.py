@@ -10,15 +10,17 @@ Refactored from original EVLA_pipe_priorcals.py to follow function-based,
 context-passing design pattern.
 """
 
-from typing import Dict, Any, List
 from pathlib import Path
+from typing import Any, Dict, List
+
 from casatasks import gencal
+
 from evla_pipe.utils import (
-    runtiming,
-    logprint,
     correct_ant_posns,
-    get_caltable_path,
     format_qa_status,
+    get_caltable_path,
+    logprint,
+    runtiming,
 )
 
 
@@ -35,8 +37,7 @@ def task_logprint(msg: str) -> None:
 
 
 def generate_gain_curves_table(
-    msname: str,
-    pipeline_context: Dict[str, Any]
+    msname: str, pipeline_context: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
     Generate elevation gain curves calibration table.
@@ -86,10 +87,7 @@ def generate_gain_curves_table(
 
 
 def generate_opacities_table(
-    msname: str,
-    all_spw: str,
-    tau: List[float],
-    pipeline_context: Dict[str, Any]
+    msname: str, all_spw: str, tau: List[float], pipeline_context: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
     Generate atmospheric opacity calibration table.
@@ -147,9 +145,7 @@ def generate_opacities_table(
 
 
 def generate_requantizer_table(
-    msname: str,
-    startdate: float,
-    pipeline_context: Dict[str, Any]
+    msname: str, startdate: float, pipeline_context: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
     Generate requantizer gains calibration table (if applicable).
@@ -214,8 +210,7 @@ def generate_requantizer_table(
 
 
 def generate_antenna_position_table(
-    msname: str,
-    pipeline_context: Dict[str, Any]
+    msname: str, pipeline_context: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
     Generate antenna position corrections calibration table.
@@ -391,7 +386,7 @@ def priorcals(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
             task_logprint(f"  • {Path(table).name}")
 
     except Exception as e:
-        task_logprint(f"*** Prior Calibrations FAILED ***")
+        task_logprint("*** Prior Calibrations FAILED ***")
         task_logprint(f"Error: {e}")
 
         pipeline_context["QA2_priorcals"] = "Fail"

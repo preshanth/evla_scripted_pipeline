@@ -1,13 +1,11 @@
 # evaluate_flux_gain_flags.py
 
-from evla_pipe.utils import (
-        runtiming,
-        logprint,
-        getCalFlaggedSoln,
-)
+from evla_pipe.utils import getCalFlaggedSoln, logprint, runtiming
+
 
 def task_logprint(msg):
     logprint(msg, logfileout="logs/fluxgains_qa.log")
+
 
 def evaluate_flux_gain_flags():
     """

@@ -7,12 +7,13 @@ NB: in CASA 3.4.0 can only set models based on field ID and spw, not
 by intents or scans
 """
 
-from casatasks import setjy, split
-import numpy as np
-import scipy as sp
 import math
 
-from evla_pipe.utils import runtiming, logprint, find_standards, find_EVLA_band
+import numpy as np
+import scipy as sp
+from casatasks import setjy, split
+
+from evla_pipe.utils import find_EVLA_band, find_standards, logprint, runtiming
 
 pi = np.pi
 

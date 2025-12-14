@@ -6,9 +6,11 @@ of flagdata. This is run after semi-final calibration to identify and flag
 remaining RFI.
 """
 
-from typing import Dict, Any
+from typing import Any, Dict
+
 from casatasks import flagdata
-from evla_pipe.utils import logprint, runtiming, format_qa_status
+
+from evla_pipe.utils import format_qa_status, logprint, runtiming
 
 
 def task_logprint(msg: str) -> None:

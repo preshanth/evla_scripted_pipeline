@@ -6,16 +6,18 @@ setjy to set the model column for flux calibration.
 Replaces: EVLA_pipe_fluxgains.py
 """
 
-from typing import Dict, Any, List, Optional, Union
+from typing import Any, Dict, List, Union
+
 from casatasks import setjy
-from evla_pipe.utils import (
-    logprint,
-    find_standards,
-    find_EVLA_band,
-    runtiming,
-    format_qa_status,
-)
+
 from evla_pipe.pol_setjy_utils import integrate_polarization_setjy
+from evla_pipe.utils import (
+    find_EVLA_band,
+    find_standards,
+    format_qa_status,
+    logprint,
+    runtiming,
+)
 
 
 def task_logprint(msg: str) -> None:
@@ -34,7 +36,7 @@ def set_standard_source_models(
     field_positions: Any,
     field_spws: Union[List, Dict],
     center_frequencies: Union[List, Dict],
-    scratch: bool
+    scratch: bool,
 ) -> Dict[str, Any]:
     """
     Set flux density models for standard primary calibrators using setjy.
@@ -98,18 +100,20 @@ def set_standard_source_models(
                 # center_frequencies might be list or dict - handle both
                 if isinstance(center_frequencies, dict):
                     reference_frequency = center_frequencies.get(myspw)
-                elif isinstance(center_frequencies, list) and myspw < len(center_frequencies):
+                elif isinstance(center_frequencies, list) and myspw < len(
+                    center_frequencies
+                ):
                     reference_frequency = center_frequencies[myspw]
                 else:
                     reference_frequency = None
 
                 if reference_frequency is None:
-                    task_logprint(f"Warning: Center frequency not found for spw {myspw} (field {myfield})")
-                    failed_fields.append({
-                        "field": myfield,
-                        "spw": myspw,
-                        "reason": "missing_frequency"
-                    })
+                    task_logprint(
+                        f"Warning: Center frequency not found for spw {myspw} (field {myfield})"
+                    )
+                    failed_fields.append(
+                        {"field": myfield, "spw": myspw, "reason": "missing_frequency"}
+                    )
                     continue
 
                 # Determine observing band and model image
@@ -126,7 +130,9 @@ def set_standard_source_models(
 
                 # Attempt full polarization model first
                 try:
-                    task_logprint(f"Attempting full polarization models for {field_name}")
+                    task_logprint(
+                        f"Attempting full polarization models for {field_name}"
+                    )
 
                     integrate_polarization_setjy(
                         vis=calibrators_ms,
@@ -138,18 +144,22 @@ def set_standard_source_models(
                         obs_date=None,  # Will use 2019 data by default
                         use_model_image=model_image,
                         standard="Perley-Butler 2017",
-                        usescratch=scratch
+                        usescratch=scratch,
                     )
 
-                    task_logprint(f"Successfully set full polarization models for {field_name}")
-                    setjy_results.append({
-                        "field": myfield,
-                        "field_name": field_name,
-                        "spw": myspw,
-                        "model": model_image,
-                        "polarization": True,
-                        "status": "success"
-                    })
+                    task_logprint(
+                        f"Successfully set full polarization models for {field_name}"
+                    )
+                    setjy_results.append(
+                        {
+                            "field": myfield,
+                            "field_name": field_name,
+                            "spw": myspw,
+                            "model": model_image,
+                            "polarization": True,
+                            "status": "success",
+                        }
+                    )
 
                 except Exception as e:
                     task_logprint(
@@ -171,24 +181,32 @@ def set_standard_source_models(
                             usescratch=scratch,
                         )
 
-                        task_logprint(f"Fallback intensity-only setjy succeeded for field {myfield}")
-                        setjy_results.append({
-                            "field": myfield,
-                            "field_name": field_name,
-                            "spw": myspw,
-                            "model": model_image,
-                            "polarization": False,
-                            "status": "fallback_success"
-                        })
+                        task_logprint(
+                            f"Fallback intensity-only setjy succeeded for field {myfield}"
+                        )
+                        setjy_results.append(
+                            {
+                                "field": myfield,
+                                "field_name": field_name,
+                                "spw": myspw,
+                                "model": model_image,
+                                "polarization": False,
+                                "status": "fallback_success",
+                            }
+                        )
 
                     except Exception as fallback_e:
-                        task_logprint(f"Fallback setjy also failed for field {myfield}: {fallback_e}")
-                        failed_fields.append({
-                            "field": myfield,
-                            "field_name": field_name,
-                            "spw": myspw,
-                            "error": str(fallback_e)
-                        })
+                        task_logprint(
+                            f"Fallback setjy also failed for field {myfield}: {fallback_e}"
+                        )
+                        failed_fields.append(
+                            {
+                                "field": myfield,
+                                "field_name": field_name,
+                                "spw": myspw,
+                                "error": str(fallback_e),
+                            }
+                        )
 
     runtiming("fluxgains_setjy", "end")
 
@@ -299,11 +317,7 @@ def fluxgains(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
 
         # Set standard source models
         pipeline_context = set_standard_source_models(
-            pipeline_context,
-            field_positions,
-            field_spws,
-            center_frequencies,
-            scratch
+            pipeline_context, field_positions, field_spws, center_frequencies, scratch
         )
 
         # Check results and set QA score
@@ -316,9 +330,7 @@ def fluxgains(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
                 f"Successfully set models for {success_count} field/spw combinations"
             )
             if failure_count > 0:
-                task_logprint(
-                    f"Warning: {failure_count} field/spw combinations failed"
-                )
+                task_logprint(f"Warning: {failure_count} field/spw combinations failed")
         else:
             QA2_score = "Fail"
             error_msg = "No standard source models were successfully set"
@@ -332,7 +344,7 @@ def fluxgains(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
         QA2_score = "Fail"
 
     # Final logging and context updates
-    task_logprint(f"Finished EVLA_pipe_fluxgains")
+    task_logprint("Finished EVLA_pipe_fluxgains")
     task_logprint(f"QA2 score: {format_qa_status(QA2_score)}")
     time_list = runtiming("fluxgains", "end")
 

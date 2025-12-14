@@ -6,9 +6,11 @@ This module provides statistical weighting of visibility data based on the
 scatter within each spectral window.
 """
 
-from typing import Dict, Any, Optional
+from typing import Any, Dict
+
 from casatasks import statwt
-from evla_pipe.utils import logprint, runtiming, format_qa_status
+
+from evla_pipe.utils import format_qa_status, logprint, runtiming
 
 
 def task_logprint(msg: str) -> None:
@@ -27,7 +29,7 @@ def statwt_calibration(
     pipeline_context: Dict[str, Any],
     minsamp: int = 2,
     calibrator_spw: str = "",
-    target_spw: str = ""
+    target_spw: str = "",
 ) -> Dict[str, Any]:
     """
     Calculate data weights based on standard deviation within each spectral window.

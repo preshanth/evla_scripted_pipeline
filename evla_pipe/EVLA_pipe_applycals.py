@@ -7,10 +7,11 @@ polarization calibrations if available.
 
 import copy
 import os
-from typing import Dict, Any, List, Optional
-from pathlib import Path
-from casatasks import flagdata, applycal
-from evla_pipe.utils import logprint, runtiming, get_log_path, get_caltable_path
+from typing import Any, Dict, List, Optional
+
+from casatasks import applycal, flagdata
+
+from evla_pipe.utils import get_caltable_path, get_log_path, logprint, runtiming
 
 
 def task_logprint(msg: str) -> None:
@@ -25,7 +26,9 @@ def task_logprint(msg: str) -> None:
     logprint(msg, logfileout=str(get_log_path("applycals.log")))
 
 
-def _find_calibration_table(expected_table: str, possible_paths: List[str]) -> Optional[str]:
+def _find_calibration_table(
+    expected_table: str, possible_paths: List[str]
+) -> Optional[str]:
     """
     Find a calibration table in possible locations.
 
@@ -46,7 +49,9 @@ def _find_calibration_table(expected_table: str, possible_paths: List[str]) -> O
             task_logprint(f"Found {expected_table} at {path}")
             return path
 
-    task_logprint(f"WARNING: Could not find calibration table {expected_table} in any expected location")
+    task_logprint(
+        f"WARNING: Could not find calibration table {expected_table} in any expected location"
+    )
     return None
 
 
@@ -75,25 +80,25 @@ def _build_calibration_table_list(pipeline_context: Dict[str, Any]) -> List[str]
         "finaldelay.k": [
             "delay.k",
             str(get_caltable_path("delay.k", "intermediate")),
-            str(get_caltable_path("delay.k", "final"))
+            str(get_caltable_path("delay.k", "final")),
         ],
         "finalBPcal.b": [
             "BPcal.b",
             str(get_caltable_path("BPcal.b", "intermediate")),
-            str(get_caltable_path("BPcal.b", "final"))
+            str(get_caltable_path("BPcal.b", "final")),
         ],
         "averagephasegain.g": [
             "averagephasegain.g",
-            str(get_caltable_path("averagephasegain.g", "final"))
+            str(get_caltable_path("averagephasegain.g", "final")),
         ],
         "finalampgaincal.g": [
             "finalampgaincal.g",
-            str(get_caltable_path("finalampgaincal.g", "final"))
+            str(get_caltable_path("finalampgaincal.g", "final")),
         ],
         "finalphasegaincal.g": [
             "finalphasegaincal.g",
-            str(get_caltable_path("finalphasegaincal.g", "final"))
-        ]
+            str(get_caltable_path("finalphasegaincal.g", "final")),
+        ],
     }
 
     # Find and add standard calibration tables
@@ -206,7 +211,7 @@ def applycals(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     - Creates backup of flags before applying calibrations
     """
     task_logprint("*** Starting EVLA_pipe_applycals.py ***")
-    time_list = runtiming("applycals", "start")
+    runtiming("applycals", "start")
 
     # Initialize QA score
     QA2_applycals = "Pass"
@@ -249,7 +254,9 @@ def applycals(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
                 gainfield=[""] * ntables,
                 interp=[""] * ntables,
                 spwmap=[[]] * ntables,
-                parang=True if do_pol else False,  # Enable parallactic angle correction for polarization
+                parang=(
+                    True if do_pol else False
+                ),  # Enable parallactic angle correction for polarization
                 calwt=[False] * ntables,
                 applymode="calflagstrict",
                 flagbackup=True,
@@ -276,9 +283,10 @@ def applycals(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
 
     # Import colored output function
     from evla_pipe.utils import format_qa_status
+
     task_logprint(f"QA2 score: {format_qa_status(QA2_applycals)}")
     task_logprint("Finished EVLA_pipe_applycals.py")
-    time_list = runtiming("applycals", "end")
+    runtiming("applycals", "end")
 
     return pipeline_context
 

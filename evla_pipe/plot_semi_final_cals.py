@@ -1,15 +1,19 @@
 # plot_semi_final_cals.py (Continued)
 
 import os
-from evla_pipe.plotting import plotms
-from casatools import table
-from evla_pipe.utils import logprint, runtiming
+
 import numpy as np
+from casatools import table
+
+from evla_pipe.plotting import plotms
+from evla_pipe.utils import logprint, runtiming
 
 tb = table()
 
+
 def task_logprint(msg):
     logprint(msg, logfileout="logs/semiFinalBPdcals1_plots.log")
+
 
 def plot_semi_final_calibration_results(pipeline_context):
     """
@@ -18,12 +22,14 @@ def plot_semi_final_calibration_results(pipeline_context):
     Args:
         pipeline_context (dict): Dictionary containing pipeline parameters.
     """
-    task_logprint("*** Starting plotting semi-final delay and BP calibration results ***")
-    time_list = runtiming("semiFinalBPdcals1_plot", "start")
+    task_logprint(
+        "*** Starting plotting semi-final delay and BP calibration results ***"
+    )
+    runtiming("semiFinalBPdcals1_plot", "start")
 
     ms_active = pipeline_context.get("msname")
     numAntenna = pipeline_context.get("numAntenna", 0)
-    calibrator_field_select_string = pipeline_context.get("calibrator_field_select_string", "")
+    pipeline_context.get("calibrator_field_select_string", "")
     corrstring = pipeline_context.get("corrstring", "RR,LL")
 
     nplots = int(numAntenna / 3) + (1 if (numAntenna % 3) > 0 else 0)
@@ -185,4 +191,4 @@ def plot_semi_final_calibration_results(pipeline_context):
     task_logprint("Plotting calibrated calibrators complete")
 
     task_logprint("Finished plotting semi-final delay and BP calibration results")
-    time_list = runtiming("semiFinalBPdcals1_plot", "end")
+    runtiming("semiFinalBPdcals1_plot", "end")

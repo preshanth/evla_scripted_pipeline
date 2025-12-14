@@ -5,8 +5,8 @@ This module generates diagnostic plots for the flux gain calibration table
 to identify problematic data that should be flagged.
 """
 
-from typing import Dict, Any
 from pathlib import Path
+from typing import Any, Dict
 
 from evla_pipe.plotting import plotms
 from evla_pipe.utils import logprint
@@ -21,7 +21,7 @@ def task_logprint(msg: str) -> None:
     msg : str
         Message to log
     """
-    logprint(msg, logfileout='logs/fluxflag.log')
+    logprint(msg, logfileout="logs/fluxflag.log")
 
 
 def fluxflag(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
@@ -127,7 +127,7 @@ if __name__ == "__main__":
     # Example usage for testing
     test_context: Dict[str, Any] = {
         "flux_gaincal_table": "fluxgaincal.g",
-        "plot_dir": "."
+        "plot_dir": ".",
     }
 
     result_context = fluxflag(test_context)

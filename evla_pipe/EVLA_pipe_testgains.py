@@ -5,16 +5,17 @@ This module determines the optimal short solution interval for gain calibrations
 by testing various solution intervals and evaluating the fraction of flagged solutions.
 """
 
-from typing import Dict, Any, Optional
+from typing import Any, Dict
+
 from casatasks import rmtables
 from casatools import table
 
 from evla_pipe.utils import (
+    RefAntHeuristics,
+    format_qa_status,
     logprint,
     runtiming,
-    RefAntHeuristics,
     testgains,
-    format_qa_status,
 )
 
 tb = table()
@@ -35,8 +36,7 @@ def task_logprint(msg: str, logfile: str = "logs/testgains.log") -> None:
 
 
 def determine_reference_antenna(
-    pipeline_context: Dict[str, Any],
-    ms_name: str = "calibrators.ms"
+    pipeline_context: Dict[str, Any], ms_name: str = "calibrators.ms"
 ) -> str:
     """
     Determine reference antenna for gain calibrations.
@@ -55,15 +55,14 @@ def determine_reference_antenna(
     str
         Comma-separated list of reference antenna names
     """
-    calibrator_field_select_string = pipeline_context.get("calibrator_field_select_string", "")
+    calibrator_field_select_string = pipeline_context.get(
+        "calibrator_field_select_string", ""
+    )
 
     task_logprint("\nFinding a reference antenna for gain calibrations\n")
 
     findrefant = RefAntHeuristics(
-        vis=ms_name,
-        field=calibrator_field_select_string,
-        geometry=True,
-        flagging=True
+        vis=ms_name, field=calibrator_field_select_string, geometry=True, flagging=True
     )
     RefAntOutput = findrefant.calculate()
     refAnt = ",".join(str(RefAntOutput[i]) for i in range(min(4, len(RefAntOutput))))
@@ -79,7 +78,7 @@ def test_solution_interval(
     solint: str,
     refant: str,
     min_bl: int,
-    combtime: str = ""
+    combtime: str = "",
 ) -> Dict[str, Any]:
     """
     Test a specific solution interval and return flagging statistics.
@@ -123,13 +122,11 @@ def test_solution_interval(
     return {
         "fraction": flaggedSolnResult["all"]["fraction"],
         "antmedian_fraction": flaggedSolnResult["antmedian"]["fraction"],
-        "total": flaggedSolnResult["all"]["total"]
+        "total": flaggedSolnResult["all"]["total"],
     }
 
 
-def determine_short_gain_solint(
-    pipeline_context: Dict[str, Any]
-) -> Dict[str, Any]:
+def determine_short_gain_solint(pipeline_context: Dict[str, Any]) -> Dict[str, Any]:
     """
     Determine the optimal short solution interval for gain calibrators.
 
@@ -169,7 +166,9 @@ def determine_short_gain_solint(
     flagging_threshold = float(pipeline_context.get("flagging_threshold", 0.5))
     minBL_for_cal = int(pipeline_context.get("minBL_for_cal", 3))
     shortsol1 = pipeline_context.get("shortsol1", "int")
-    calibrator_scan_select_string = pipeline_context.get("calibrator_scan_select_string", "")
+    calibrator_scan_select_string = pipeline_context.get(
+        "calibrator_scan_select_string", ""
+    )
 
     # Convert longsolint to float if it's not "inf"
     longsolint_value = float(longsolint) if longsolint != "inf" else longsolint
@@ -183,10 +182,10 @@ def determine_short_gain_solint(
 
         # Test solution intervals: 1x, 3x, 10x integration time, then scan-level
         time_factors = [
-            (1.0, False),   # 1x int_time
-            (3.0, False),   # 3x int_time
+            (1.0, False),  # 1x int_time
+            (3.0, False),  # 3x int_time
             (10.0, False),  # 10x int_time
-            ("inf", True)   # scan-level
+            ("inf", True),  # scan-level
         ]
 
         shortsol2 = None
@@ -209,7 +208,7 @@ def determine_short_gain_solint(
                 solint=solint,
                 refant=refAnt,
                 min_bl=minBL_for_cal,
-                combtime=combtime
+                combtime=combtime,
             )
 
             frac_flagged = stats["fraction"]
