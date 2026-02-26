@@ -3,14 +3,19 @@ Helper functions for compatibility across CASA versions and monolithic/modular
 frameworks.
 """
 
-# The `casalog` symbol is a built-in in the monolithic CASA namespace. If it
-# doesn't exist, then that means we are using modular CASA in a user's Python
-# environment.
+# `casalog` is a built-in name only in monolithic CASA.
+# In modular CASA (casatools pip package) it must be imported.
+# We treat both cases as "running within CASA" so utils.py initialises
+# its module-level tool instances (me, tb, qa, ...) correctly.
 try:
-    casalog
+    casalog  # monolithic CASA: casalog is a builtin
     running_within_casa = True
 except NameError:
-    running_within_casa = False
+    try:
+        from casatools import measures as _  # modular CASA available
+        running_within_casa = True
+    except ImportError:
+        running_within_casa = False
 
 
 def import_casa_modules():

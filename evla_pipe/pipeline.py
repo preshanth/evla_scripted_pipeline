@@ -1,307 +1,184 @@
-######################################################################
-#
-# EVLA Pipeline Core Functions
-#
-######################################################################
-
 """
-Core pipeline functions for EVLA data processing.
+EVLA continuum calibration pipeline — orchestrator.
+
+Entry point: ``continuum(sdm_name, ...)``
+
+Stage sequence
+--------------
+1.  run_startup       — output directories
+2.  run_import        — importasdm → MS
+3.  run_hanning       — Hanning smooth (skippable)
+4.  run_msmd          — populate context from MS metadata
+5.  run_preflag       — online + shadow + tfcrop flags; split calibrators.ms
+6.  run_priorcals     — gaincurve, opacities, requantizer, antpos
+7.  run_setjy         — flux + pol models on calibrators.ms
+8.  run_initial_bp    — short BP solve + applycal
+9.  run_initial_rflag — rflag/tfcrop on residual; optional BP re-solve
+10. run_semi_final_bp — pass 1: delay + BP + applycal on calibrators.ms
+11. run_checkflag     — rflag on corrected calibrators.ms
+12. run_semi_final_bp — pass 2 (intentional duplicate)
+13. run_solint        — determine gain_solint2 from scan durations
+14. run_test_gains    — validate gain_solint2 via flag fraction
+15. run_flux_gains    — re-setjy flux cals + solve fluxgaincal.g
+16. run_fluxboot      — fluxscale + power-law fit + setjy
+17. run_final_cals    — final delay + BP + phase + amp tables
+18. run_polcal        — KCROSS + Df (no-op if do_pol=False)
+19. run_apply_cals    — applycal full MS + statwt + split target.ms
+20. run_final_flags   — rflag on target.ms
 """
 
 import warnings
 
-from evla_pipe import __version_str__, exec_script
-from evla_pipe.compat import import_casa_modules
+from evla_pipe.context import PipelineContext, make_default_context
+from evla_pipe.stages.apply_cals import run_apply_cals
+from evla_pipe.stages.checkflag import run_checkflag
+from evla_pipe.stages.final_cals import run_final_cals
+from evla_pipe.stages.final_flags import run_final_flags
+from evla_pipe.stages.flux_gains import run_flux_gains
+from evla_pipe.stages.fluxboot import run_fluxboot
+from evla_pipe.stages.import_data import run_hanning, run_import
+from evla_pipe.stages.initial_bp import run_initial_bp
+from evla_pipe.stages.initial_rflag import run_initial_rflag
+from evla_pipe.stages.msmd import run_msmd
+from evla_pipe.stages.polcal import run_polcal
+from evla_pipe.stages.preflag import run_preflag
+from evla_pipe.stages.priorcals import run_priorcals
+from evla_pipe.stages.semi_final_bp import run_semi_final_bp
+from evla_pipe.stages.setjy import run_setjy
+from evla_pipe.stages.solint import run_solint
+from evla_pipe.stages.startup import run_startup
+from evla_pipe.stages.test_gains import run_test_gains
 
-# Test CASA availability and import polarization module accordingly
-casa_modules = import_casa_modules()
-if casa_modules["available"]:
-    try:
-        from .polarization import integrate_polarization_calibration
-
-        POLARIZATION_AVAILABLE = True
-    except ImportError as e:
-        warnings.warn(f"Polarization module not available: {e}", stacklevel=2)
-        POLARIZATION_AVAILABLE = False
-
-        def integrate_polarization_calibration(*args, **kwargs):
-            raise NotImplementedError(
-                "Polarization calibration requires CASA to be available"
-            )
-
-else:
-    warnings.warn(
-        f"CASA modules not available: {casa_modules.get('error', 'Unknown error')}",
-        stacklevel=2,
-    )
-    POLARIZATION_AVAILABLE = False
-
-    def integrate_polarization_calibration(*args, **kwargs):
-        raise NotImplementedError(
-            "Polarization calibration requires CASA to be available"
-        )
-
-
-def check_casa_version():
-    """Check CASA version compatibility."""
-    try:
-        from casatasks import version
-
-        casa_version = tuple(version())
-        assert len(casa_version) == 4
-        if casa_version[0] != 6:
-            raise RuntimeError("This scripted pipeline is built for use with CASA 6.")
-        if casa_version[:-1] < (6, 1, 0):
-            raise RuntimeError("This scripted pipeline requires CASA v6.1.0 or later.")
-        return casa_version
-    except ImportError:
-        warnings.warn("CASA not available - version check skipped", stacklevel=2)
-        return None
+try:
+    from evla_pipe import __version_str__
+except ImportError:
+    __version_str__ = "unknown"
 
 
 def continuum(
-    sdm_name,
-    skip_hanning=False,
-    verbose=False,
-    context=None,
-    enable_polarization=False,
-    enable_plots=True,
-    resume_from=None,
-    skip_steps=None,
-):
+    sdm_name: str,
+    skip_hanning: bool = False,
+    verbose: bool = False,
+    context: dict | None = None,
+    enable_polarization: bool = False,
+    enable_plots: bool = True,
+    workdir: str | None = None,
+    resume_from: str | None = None,
+    skip_steps: list | None = None,
+) -> PipelineContext:
     """
     Run the EVLA continuum calibration pipeline.
 
     Parameters
     ----------
     sdm_name : str
-        SDM directory name (without .ms extension)
-    skip_hanning : bool, optional
-        Skip Hanning smoothing step (recommended for spectral line projects)
-    verbose : bool, optional
-        Enable verbose output
+        SDM directory name (without .ms extension).
+    skip_hanning : bool
+        Skip Hanning smoothing (recommended for spectral line projects).
+    verbose : bool
+        Print stage banners to stdout.
     context : dict, optional
-        Pipeline context dictionary. If None, a new context is created.
-    enable_polarization : bool, optional
-        Enable polarization calibration (default: False)
-    enable_plots : bool, optional
-        Enable plotting output (default: True)
+        Seed context.  A fresh default context is used if None.
+    enable_polarization : bool
+        Enable polarization calibration (default: False).
+    enable_plots : bool
+        Enable plotting output (default: True).
+    resume_from : str, optional
+        Unused — reserved for future resume support.
+    skip_steps : list, optional
+        Unused — reserved for future skip support.
 
     Returns
     -------
-    dict
-        Updated pipeline context
-
-    Examples
-    --------
-    >>> from evla_pipe import continuum
-    >>> result = continuum('my_dataset')
-    >>> result = continuum('my_dataset', skip_hanning=True)
+    PipelineContext
+        Final pipeline context.
     """
+    if resume_from or skip_steps:
+        warnings.warn(
+            "resume_from and skip_steps are not yet implemented"
+            " in the refactored pipeline",
+            stacklevel=2,
+        )
+
     if verbose:
         print(f":: Starting EVLA continuum pipeline v{__version_str__}")
 
-    if context is None:
-        context = {}
+    ctx: PipelineContext = make_default_context() if context is None else dict(context)
 
-    # Set SDM name, polarization flag, and plotting flag in context
-    if sdm_name:
-        context["SDM_name"] = sdm_name
-    context["do_pol"] = enable_polarization
-    context["do_hanning"] = not skip_hanning  # Convert skip_hanning to do_hanning
-    context["enable_plots"] = enable_plots
+    # Seed top-level inputs
+    ctx["SDM_name"] = sdm_name
+    ctx["do_pol"] = enable_polarization
+    ctx["do_hanning"] = not skip_hanning
+    ctx["enable_plots"] = enable_plots
+    if workdir:
+        ctx["workdir"] = workdir
 
-    if skip_steps is None:
-        skip_steps = []
-
-    # Try to load previous context if resuming
-    if resume_from:
-        import json
-
-        context_file = f"pipeline_context_{resume_from}.json"
-        try:
-            with open(context_file, "r") as f:
-                saved_context = json.load(f)
-                context.update(saved_context)
-                if verbose:
-                    print(f":: Resumed context from {context_file}")
-        except FileNotFoundError:
-            if verbose:
-                print(f":: Context file {context_file} not found, starting fresh")
-
-    def should_skip_step(step_name):
-        """Check if step should be skipped."""
-        return step_name in skip_steps
-
-    def should_resume_from_step(step_name):
-        """Check if we should start from this step."""
-        if resume_from is None:
-            return True
-        return step_name == resume_from or context.get("started_resume", False)
-
-    def exec_step(step_name, allow_failure=False):
-        """Execute a pipeline step with skip/resume logic."""
-        if should_skip_step(step_name):
-            if verbose:
-                print(f":: Skipping {step_name} (user requested)")
-            return
-
-        if not should_resume_from_step(step_name):
-            if verbose:
-                print(f":: Skipping {step_name} (not at resume point yet)")
-            return
-
-        # Mark that we've started resuming
-        if resume_from == step_name:
-            context["started_resume"] = True
-
-        return exec_script(step_name, context, allow_failure=allow_failure)
-
-    try:
-        # The following script includes all the definitions and functions and
-        # prior inputs needed by a run of the pipeline.
+    def _step(name: str) -> None:
         if verbose:
-            print(":: Running startup script")
-        exec_step("EVLA_pipe_startup")
+            print(f":: {name}")
 
-        # Import the data to CASA.
-        if verbose:
-            print(":: Importing data")
-        exec_step("EVLA_pipe_import")
+    _step("startup")
+    ctx = run_startup(ctx)
 
-        # Hanning smooth (optional step)
-        if not skip_hanning:
-            if verbose:
-                print(":: Applying Hanning smoothing")
-            exec_step("EVLA_pipe_hanning", allow_failure=True)  # Non-critical
-        elif verbose:
-            print(":: Skipping Hanning smoothing")
+    _step("import")
+    ctx = run_import(ctx)
 
-        # Get information from the MS that will be needed later (modern msmetadata API)
-        if verbose:
-            print(":: Gathering MS information")
-        exec_step("EVLA_pipe_msmd")
+    if not skip_hanning:
+        _step("hanning")
+        ctx = run_hanning(ctx)
 
-        # Deterministic flagging
-        if verbose:
-            print(":: Applying deterministic flags")
-        exec_step("EVLA_pipe_flagall")
+    _step("msmd")
+    ctx = run_msmd(ctx)
 
-        # Prepare for calibrations
-        if verbose:
-            print(":: Preparing calibrations")
-        exec_step("EVLA_pipe_calprep")
+    _step("preflag + calibrators.ms split")
+    ctx = run_preflag(ctx)
 
-        # Apply "prior" calibrations
-        if verbose:
-            print(":: Applying prior calibrations")
-        exec_step("EVLA_pipe_priorcals")
+    _step("priorcals")
+    ctx = run_priorcals(ctx)
 
-        # Initial test calibrations
-        if verbose:
-            print(":: Running initial test calibrations")
-        exec_step("EVLA_pipe_testBPdcals")
+    _step("setjy")
+    ctx = run_setjy(ctx)
 
-        # Flag bad deformatters
-        if verbose:
-            print(":: Flagging bad deformatters")
-        exec_step("EVLA_pipe_flag_baddeformatters", allow_failure=True)  # Non-critical
+    _step("initial BP")
+    ctx = run_initial_bp(ctx)
 
-        # Flag RFI on bandpass calibrator
-        if verbose:
-            print(":: Flagging RFI on bandpass calibrator")
-        exec_step("EVLA_pipe_checkflag", allow_failure=True)  # Non-critical
+    _step("initial rflag")
+    ctx = run_initial_rflag(ctx)
 
-        # Semi-final delay and bandpass calibrations
-        if verbose:
-            print(":: Running semi-final BP/delay calibrations")
-        exec_step("EVLA_pipe_semiFinalBPdcals1")
+    _step("semiFinalBPdcals pass 1")
+    ctx = run_semi_final_bp(ctx)
 
-        # Additional flagging on calibrators
-        if verbose:
-            print(":: Additional flagging on calibrators")
-        exec_step("EVLA_pipe_checkflag_semiFinal", allow_failure=True)  # Non-critical
+    _step("checkflag")
+    ctx = run_checkflag(ctx)
 
-        # Re-run semi-final calibrations
-        if verbose:
-            print(":: Re-running semi-final BP/delay calibrations")
-        exec_step("EVLA_pipe_semiFinalBPdcals1")
+    _step("semiFinalBPdcals pass 2")
+    ctx = run_semi_final_bp(ctx)
 
-        # Determine solution interval
-        if verbose:
-            print(":: Determining solution intervals")
-        exec_step("EVLA_pipe_solint", allow_failure=True)  # Can use defaults
+    _step("solint")
+    ctx = run_solint(ctx)
 
-        # Test gain calibrations
-        if verbose:
-            print(":: Running test gain calibrations")
-        exec_step("EVLA_pipe_testgains", allow_failure=True)  # Can use defaults
+    _step("test gains")
+    ctx = run_test_gains(ctx)
 
-        # Flux density bootstrapping gains
-        if verbose:
-            print(":: Creating flux bootstrapping gains")
-        exec_step("EVLA_pipe_fluxgains", allow_failure=True)  # Can skip if problematic
+    _step("flux gains")
+    ctx = run_flux_gains(ctx)
 
-        # Flux density bootstrapping
-        if verbose:
-            print(":: Performing flux density bootstrapping")
-        exec_step("EVLA_pipe_fluxboot", allow_failure=True)  # Can skip if problematic
+    _step("fluxboot")
+    ctx = run_fluxboot(ctx)
 
-        # Final calibration tables
-        if verbose:
-            print(":: Creating final calibration tables")
-        exec_step("EVLA_pipe_finalcals")
+    _step("final cals")
+    ctx = run_final_cals(ctx)
 
-        # Polarization calibration (if enabled) - must run BEFORE applycals
-        if enable_polarization:
-            if verbose:
-                print(":: Running polarization calibration (Df, Xf)")
-            context = integrate_polarization_calibration(context)
+    _step("polcal")
+    ctx = run_polcal(ctx)
 
-        # Apply all calibrations (including polarization if enabled)
-        if verbose:
-            print(":: Applying all calibrations")
-        exec_step("EVLA_pipe_applycals")
+    _step("applycal + statwt + split")
+    ctx = run_apply_cals(ctx)
 
-        # Target flagging
-        if verbose:
-            print(":: Flagging calibrated target data")
-        exec_step("EVLA_pipe_targetflag")
-
-        # Statistical weights
-        if verbose:
-            print(":: Calculating statistical weights")
-        exec_step("EVLA_pipe_statwt")
-
-        # Final plots
-        if verbose:
-            print(":: Creating final plots")
-        exec_step("EVLA_pipe_plotsummary", allow_failure=True)  # Plots are non-critical
-
-        # Collect files
-        if verbose:
-            print(":: Collecting output files")
-        exec_step(
-            "EVLA_pipe_filecollect", allow_failure=True
-        )  # File collection is non-critical
-
-        # Write weblog
-        if verbose:
-            print(":: Generating modern weblog")
-        from .modern_weblog import EVLA_pipe_modern_weblog
-
-        context = EVLA_pipe_modern_weblog(context)
-
-    except KeyboardInterrupt as e:
-        if verbose:
-            print(f":: Pipeline interrupted: {e}")
-        raise
-    except Exception as e:
-        if verbose:
-            print(f":: Pipeline error: {e}")
-        raise
+    _step("final flags on target.ms")
+    ctx = run_final_flags(ctx)
 
     if verbose:
         print(":: Pipeline completed successfully")
 
-    return context
+    return ctx

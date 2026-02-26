@@ -18,8 +18,6 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Astronomy",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -59,11 +57,43 @@ Repository = "https://github.com/your-org/evla-scripted-pipeline"
 "Bug Tracker" = "https://github.com/your-org/evla-scripted-pipeline/issues"
 
 [project.scripts]
-evla-pipeline = "evla_pipe.run_pipeline:main"
+evla-pipeline = "evla_pipe.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["evla_pipe*"]
 
 [tool.setuptools.package-data]
-evla_pipe = ["*.py", "*.list"]
+evla_pipe = ["*.py", "*.list", "data/*.txt", "data/*.dat"]
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[tool.pixi.pypi-dependencies]
+evla_pipeline = { path = ".", editable = true }
+
+[tool.pixi.dependencies]
+pytest = ">=8.0"
+ruff = ">=0.4"
+
+[tool.pixi.environments]
+default = { solve-group = "default" }
+casa = { features = ["casa"], solve-group = "casa" }
+
+[tool.pixi.feature.casa.dependencies]
+# casatools PyPI wheels require Python 3.10.
+# Pin here so pixi does not pick a newer Python that has no casatools wheel.
+python = "3.10.*"
+pytest = ">=8.0"
+ruff = ">=0.4"
+
+[tool.pixi.feature.casa.pypi-dependencies]
+# casaplotms uses protobuf generated code incompatible with protobuf>=4.
+# This pin is a hard requirement — do not bump without testing casaplotms.
+protobuf = "==3.20.3"
+
+[tool.pixi.tasks]
+lint = "ruff check evla_pipe/ && ruff format --check evla_pipe/"
+
+[tool.pixi.feature.casa.tasks]
+test = "pytest -q test/test_run_startup.py test/test_run_import.py test/test_run_msmd.py test/test_run_preflag.py test/test_run_priorcals.py test/test_run_setjy.py test/test_run_initial_bp.py test/test_run_initial_rflag.py test/test_run_semi_final_bp.py test/test_run_solint.py test/test_run_fluxboot.py test/test_run_apply_cals.py"

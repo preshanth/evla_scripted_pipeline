@@ -1,298 +1,182 @@
 # EVLA Scripted Pipeline
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![CASA 6+](https://img.shields.io/badge/CASA-6.0+-green.svg)](https://casa.nrao.edu/)
-[![Polarization Ready](https://img.shields.io/badge/polarization-integrated-purple.svg)](#polarization-calibration)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![CASA 6.1+](https://img.shields.io/badge/CASA-6.1+-green.svg)](https://casa.nrao.edu/)
 
-**A modern, robust, and fully integrated VLA data calibration pipeline with polarization support**
-
-The EVLA Scripted Pipeline provides automated calibration for Very Large Array (VLA) continuum and polarization observations. It leverages advanced heuristics and automated procedures to calibrate interferometric data, producing comprehensive diagnostic plots and weblogs.
+Automated continuum calibration pipeline for VLA data. Produces calibrated
+target visibilities and diagnostic output from a raw ASDM in a single run.
 
 ---
 
-## Overview of Modernization
+## Requirements
 
-This release is a complete overhaul of the original pipeline, featuring:
-
-### Integrated Polarization Calibration
-- Automatic polarization model integration for all observations
-- Full polarization calibration, including D-terms (Df) and cross-hand delays (Xf)
-- Utilizes 2019 calibrator measurements with fallback to Perley-Butler 2013
-- Dual-mode operation: enhanced intensity calibration and optional full polarization
-
-### Modern Architecture
-- Modular, function-based Python package
-- Command-line interface with intuitive options
-- Significant codebase reduction and improved maintainability
-
-### Enhanced User Experience
-- Simple command-line usage: `python -m evla_pipe.run_pipeline your_data.asdm`
-- Automatic error recovery and resume functionality
-- Organized output directories for logs, calibration tables, and results
-- Comprehensive logging and robust handling of CASA data types
-
-### Reliability & Recovery
-- Automatic state saving for resume capability
-- Clear error messages with actionable instructions
-- Flexible step skipping and resume options
-- Intelligent calibration table resolution and graceful fallbacks
+- Python 3.10+ (required by CASA wheels)
+- CASA 6.1+ (`casatools`, `casatasks`) — only needed for pipeline execution
+- `numpy`, `scipy`
 
 ---
 
-## Requirements & Installation
-
-Minimum: Python 3.8+ (3.12 tested). This project separates CASA
-dependencies from the core package so you can develop and run
-lightweight tests without CASA installed.
-
-Recommended quick install (no CASA):
+## Installation
 
 ```bash
 git clone <repository-url> evla-pipeline
 cd evla-pipeline
-# Create a virtualenv and install (protobuf pinned via constraints.txt)
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip setuptools wheel
-pip install -c constraints.txt -e .
-```
 
-If you need CASA (`casatools`, `casatasks`, `casaplotms`) install them via
-your CASA distribution or use the optional extra (may require available
-wheels for your Python version):
+# Lightweight install (no CASA — for development and unit tests)
+python -m pip install -c constraints.txt -e .
 
-```bash
-# install CASA extras from PyPI where available
+# With CASA extras
 pip install -c constraints.txt -e .[casa]
+
+# Developer setup (lint + test tooling via pixi)
+pixi install
 ```
 
-Developer bootstrap (installs lint/test tooling):
+---
+
+## Usage
 
 ```bash
-./scripts/setup_dev_env.sh .venv
-source .venv/bin/activate
+# Basic run — output goes to <sdm_stem>_pipeline/ in the current directory
+evla-pipeline your_data.asdm
+
+# Specify output directory explicitly
+evla-pipeline your_data.asdm --workdir /data/run1
+
+# Enable polarization calibration (KCROSS + Df)
+evla-pipeline your_data.asdm --polarization
+
+# Apply Hanning smoothing after import
+evla-pipeline your_data.asdm --hanning
+
+# Resume from a named stage
+evla-pipeline your_data.asdm --resume-from run_fluxboot
+
+# Skip a stage
+evla-pipeline your_data.asdm --skip run_final_flags
+
+# Verbose logging (DEBUG level)
+evla-pipeline your_data.asdm -v
+
+# Or run as a module
+python -m evla_pipe your_data.asdm --polarization
 ```
 
-### Error Recovery & Resume
-If the pipeline encounters an error, it saves the state and provides resume instructions:
-```bash
-python -m evla_pipe.run_pipeline --resume-from EVLA_pipe_testBPdcals your_data.asdm
-python -m evla_pipe.run_pipeline --skip EVLA_pipe_fluxboot your_data.asdm
-python -m evla_pipe.run_pipeline --skip EVLA_pipe_fluxboot --skip EVLA_pipe_plotsummary your_data.asdm
-python -m evla_pipe.run_pipeline --resume-from EVLA_pipe_finalcals --enable-polarization your_data.asdm
-```
+---
 
-### Directory Structure
+## Output layout
+
+All pipeline outputs are written to the workdir (default `<sdm_stem>_pipeline/`):
+
 ```
-your_working_directory/
+TDRW0001_pipeline/
 ├── logs/
-├── pipeline_context/
-├── final_caltables/
-├── intermediate_caltables/
-├── test_caltables/
 ├── plots/
 ├── weblog/
+├── pipeline_context/
+├── final_caltables/
+│   ├── gain_curves.g
+│   ├── opacities.g
+│   ├── finaldelay.k
+│   ├── finalBPcal.b
+│   ├── finalphasegaincal.g
+│   ├── finalampgaincal.g
+│   ├── kcross.g          (polarization only)
+│   └── dterms.d          (polarization only)
+├── intermediate_caltables/
+├── test_caltables/
 ├── calibrators.ms
-└── measurement_sets/
+└── target.ms
 ```
 
-### Testing
+The full MS (`<sdm>.ms`) is written to the working directory by `importasdm`
+and is not moved.
 
-There are two test tiers:
-- Lightweight unit tests (no CASA) — fast, run in CI.
-- Full integration tests — require CASA and the large test dataset; run locally when needed.
+---
 
-Run lightweight tests:
+## Pipeline stages
 
+| # | Function | Description |
+|---|---|---|
+| 1 | `run_startup` | Validate SDM, create output directory tree |
+| 2 | `run_import` | `importasdm` → MS |
+| 3 | `run_hanning` | Hanning smooth (optional, `--hanning`) |
+| 4 | `run_msmd` | Populate context from MS metadata |
+| 5 | `run_preflag` | Online + shadow + tfcrop flags; split `calibrators.ms` |
+| 6 | `run_priorcals` | Gain curves, opacities, requantizer, antenna positions |
+| 7 | `run_setjy` | Flux + polarization models on `calibrators.ms` |
+| 8 | `run_initial_bp` | Short phase gain + initial bandpass |
+| 9 | `run_initial_rflag` | rflag/tfcrop on residual; optional BP re-solve |
+| 10 | `run_semi_final_bp` | Pass 1: delay + BP + applycal on `calibrators.ms` |
+| 11 | `run_checkflag` | rflag on corrected `calibrators.ms` |
+| 12 | `run_semi_final_bp` | Pass 2 (intentional repeat after checkflag) |
+| 13 | `run_solint` | Determine `gain_solint2` from scan durations |
+| 14 | `run_test_gains` | Validate `gain_solint2` via flag fraction |
+| 15 | `run_flux_gains` | Re-setjy flux cals + solve `fluxgaincal.g` |
+| 16 | `run_fluxboot` | `fluxscale` + power-law fit + setjy on all cals |
+| 17 | `run_final_cals` | Final delay + BP + phase + amp tables |
+| 18 | `run_polcal` | KCROSS + Df (no-op if `--polarization` not set) |
+| 19 | `run_apply_cals` | `applycal` full MS + `statwt` + split `target.ms` |
+| 20 | `run_final_flags` | rflag on `target.ms` |
+
+---
+
+## Python API
+
+```python
+from evla_pipe.pipeline import continuum
+
+ctx = continuum(
+    sdm_name="your_data.asdm",
+    enable_polarization=True,
+    workdir="/data/run1",
+)
+print(ctx["target_ms"])   # path to the calibrated target MS
+```
+
+---
+
+## Testing
+
+Two tiers:
+
+**Lightweight** (no CASA, runs in CI):
 ```bash
-pip install pytest
+pixi run pytest test/test_run_startup.py
 pytest -q test/test_simple_utils.py
 ```
 
-Full integration tests and the historical `test/run_tests.py` require CASA and
-the test SDM/MS dataset; see `test/README.md` for details.
-```
-
-### Output Files
-```
-your_data.ms/
-your_data.ms.*.cal
-your_data.ms.Xf
-your_data.ms.Df
-logs/
-plots/
-weblog/
-```
-
----
-
-## Testing & Validation
-
-### Quick Validation
-```python
-from evla_pipe.pol_setjy_utils import get_polcal_data, fit_polarization_polynomials
-
-cal_data = get_polcal_data('3C286')
-print(f"Loaded 3C286: {len(cal_data.frequencies)} frequency points")
-
-pol_frac_coeffs, pol_angle_coeffs, pol_frac_ref = fit_polarization_polynomials(
-    '3C286', 'C', 6.0
-)
-print(f"Polarization fraction at 6 GHz: {pol_frac_ref:.4f}")
-
-context = continuum('test_data.asdm', enable_polarization=True, verbose=True)
-if context.get('polarization_calibrated'):
-    print("Full polarization calibration successful.")
-```
-
-### Validation Checklist
-
-**Basic:**
-- [ ] Pipeline completes without errors
-- [ ] Measurement set and calibration tables generated
-- [ ] Weblog with diagnostic plots created
-
-**Polarization (Mode 1):**
-- [ ] Log shows polarization model integration
-- [ ] Standard calibrators detected
-- [ ] Fallback to intensity-only if needed
-
-**Full Polarization (Mode 2):**
-- [ ] Xf and Df tables created
-- [ ] Polarization tables included in applycal
-- [ ] Log shows polarization calibration steps
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-**No polarization calibrators found**
-- Cause: No standard polarization calibrators in observation
-- Solution: Pipeline falls back to intensity-only mode
-- Action: Ensure field names match standard calibrators
-
-**CASA version not supported**
-- Cause: CASA version < 6.1.0
-- Solution: Update CASA
-- Action: Run `casa --version` or import casatasks
-
-**Pipeline interrupted or failed**
-- Cause: Various
-- Solution: Check logs, use resume functionality
-- Action: Review logs, use `--verbose`, or run steps individually
-
-**Polarization calibration failed**
-- Cause: Insufficient calibrator data or S/N
-- Solution: Pipeline continues with intensity calibration
-- Action: No user action needed except to note the reason for skipping polcal.
-
-### Debugging
+**Integration** (requires CASA + test ASDM):
 ```bash
-python -m evla_pipe.run_pipeline --enable-polarization --verbose your_data.asdm
-tail -f logs/calprep.log
-tail -f logs/polcal.log
-tail -f logs/applycals.log
+export EVLA_TEST_SDM=/path/to/your.asdm
+pixi run -e casa test
 ```
 
-### Manual Step Execution
-```python
-from evla_pipe import exec_script
-
-context = {'SDM_name': 'problematic_data.asdm', 'do_pol': True}
-try:
-    context = exec_script('EVLA_pipe_startup', context)
-    context = exec_script('EVLA_pipe_import', context)
-    # Continue as needed
-except Exception as e:
-    print(f"Failed at step: {e}")
-```
+Integration tests are isolated — all CASA output goes to a pytest
+`tmp_path` directory and does not pollute the project root.
 
 ---
 
-## Advanced Configuration
+## Architecture notes
 
-### Pipeline State Management
-```bash
-python -m evla_pipe.run_pipeline --save backup.restore your_data.asdm
-python -m evla_pipe.run_pipeline --restore backup.restore
-```
-
-### Custom Polarization Data
-```python
-from evla_pipe import continuum
-
-context = continuum(
-    'your_data.asdm', 
-    enable_polarization=True,
-)
-
-from evla_pipe.pol_setjy_utils import get_polcal_data
-
-cal_data = get_polcal_data('3C286', obs_date='2015-01-01')
-cal_data = get_polcal_data('3C286', obs_date='2020-01-01')
-```
-
-### Workflow Integration
-```python
-from evla_pipe.pol_setjy_utils import integrate_polarization_setjy
-from evla_pipe.utils import find_EVLA_band
-
-integrate_polarization_setjy(
-    vis='your_data.ms',
-    field_id=0,
-    field_name='3C286',
-    spws=[0, 1, 2, 3],
-    band='C',
-    ref_freq_hz=6e9
-)
-```
-
----
-
-## Documentation
-
-### References
-- **`test/TESTING_STRATEGY.md`**: Testing framework
-- **`examples/polarization_usage.py`**: Usage examples
-- **`logs/`**: Runtime logs
-
-### Scientific References
-- Perley & Butler 2013: "An Accurate Flux Density Scale from 1 to 50 GHz"
-
-### Development
-
-Use `./scripts/setup_dev_env.sh` to create a development venv and install lint/test
-tools. Run the lightweight unit tests during development; only run full
-integration tests when CASA and the dataset are available.
-
-Contributions: follow PEP 8, keep tests meaningful and fast, and add integration
-tests only where necessary.
+- `evla_pipe/stages/` — one file per pipeline stage; each exports a single
+  `run_<name>(ctx) -> ctx` function
+- `evla_pipe/context.py` — `PipelineContext` TypedDict; single source of
+  truth for all pipeline state; no CASA imports
+- `evla_pipe/pipeline.py` — orchestrator; a plain list of function calls
+- `evla_pipe/legacy/` — original `EVLA_pipe_*.py` scripts retained for
+  reference; not imported by the active pipeline
+- `evla_pipe/compat.py` — gates all CASA imports; package imports cleanly
+  without CASA installed
 
 ---
 
 ## License & Credits
 
-**License**: GNU General Public License (GPL) v3  
-**Copyright**: 2013-2025 Associated Universities Inc.
+**License**: GNU General Public License (GPL) v2+
+**Copyright**: 2013–2025 Associated Universities Inc.
 
-**Original Authors:**  
-- Claire Chandler (NRAO)
-- Emmanuel Momjian (NRAO)
-- Steve Myers (NRAO)
-
-**Modernization & Polarization Integration:**  
-- Python 3 port: Brian Svoboda (2023)
-- Polarization integration : Kelly Sanderson(2024)
-- Modernization: Preshanth Jagannathan (2024-2025)
-
----
-
-## Getting Started
-
-```bash
-python -m evla_pipe.run_pipeline your_continuum_data.asdm
-python -m evla_pipe.run_pipeline --enable-polarization your_polarization_data.asdm
-python -m evla_pipe.run_pipeline --help
-```
+**Original authors:** Claire Chandler, Emmanuel Momjian, Steve Myers (NRAO)
+**Python 3 port:** Brian Svoboda (2023)
+**Polarization integration:** Kelly Sanderson (2024)
+**Refactor:** Preshanth Jagannathan (2024–2025)

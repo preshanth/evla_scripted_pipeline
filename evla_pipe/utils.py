@@ -369,8 +369,7 @@ def _extract_position_tuples(
             lat = field_pos["m1"]["value"]  # Dec in radians
             positions.append((lon, lat))
         else:
-            task_logprint(f"Warning: Unexpected field position format: {field_pos}")
-            positions.append((0.0, 0.0))  # Fallback to origin
+            positions.append((0.0, 0.0))  # unexpected format — skip gracefully
     return positions
 
 
@@ -388,17 +387,8 @@ def find_standards(positions, max_sep=1.2e-3):
     fields_3C138 = []
     fields_3C147 = []
     fields_3C286 = []
-    task_logprint("TEST:Enumerating positions")
-    print(positions)
-    # task_logprint("TEST: positions[0].type = %s" %positions[0].type)
-    print(positions)
-    print(positions[0])
     for ii, (lon, lat) in enumerate(positions):
-        # lon = pos['m0']['value']
-        # lat = pos['m1']['value']
-        task_logprint("TEST: ii, (lon, lat) = %s, %s, %s" % (ii, lon, lat))
         position = me.direction("j2000", "{0}rad".format(lon), "{0}rad".format(lat))
-        task_logprint("TEST:Calculating separation")
         _calc_separation(position, position_3C48)
         if _calc_separation(position, position_3C48) < max_sep:
             fields_3C48.append(ii)
