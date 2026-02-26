@@ -37,16 +37,33 @@ def task_log(msg: str) -> None:
 
 # Pol angle calibrators: highly polarized, known position angle
 _POL_ANGLE_CALS = [
-    "J1331+3030", "1331+305",  "3C286", "3c286",
-    "J0521+1638", "0521+166",  "3C138", "3c138",
-    "J0137+3309", "0137+331",  "3C48",  "3c48",
+    "J1331+3030",
+    "1331+305",
+    "3C286",
+    "3c286",
+    "J0521+1638",
+    "0521+166",
+    "3C138",
+    "3c138",
+    "J0137+3309",
+    "0137+331",
+    "3C48",
+    "3c48",
 ]
 
 # Leakage calibrators: low / zero intrinsic polarization
 _POL_LKG_CALS = [
-    "J0319+4130", "0316+413",  "3C84",  "3c84",
-    "J1407+2827", "OQ208",     "oq208",
-    "J0542+4951", "0542+498",  "3C147", "3c147",
+    "J0319+4130",
+    "0316+413",
+    "3C84",
+    "3c84",
+    "J1407+2827",
+    "OQ208",
+    "oq208",
+    "J0542+4951",
+    "0542+498",
+    "3C147",
+    "3c147",
     "J0259+0747",
 ]
 
@@ -59,7 +76,9 @@ def _normalize(name: str) -> str:
     return "".join(c for c in name.lower() if c.isalnum())
 
 
-def _fields_for_names(msmd_tool, field_names: list[str], aliases: list[str]) -> list[int]:
+def _fields_for_names(
+    msmd_tool, field_names: list[str], aliases: list[str]
+) -> list[int]:
     """
     Return field IDs whose names match any alias in the list.
 
@@ -89,6 +108,7 @@ def _fields_for_names(msmd_tool, field_names: list[str], aliases: list[str]) -> 
 # corrstring from receptor type
 # ---------------------------------------------------------------------------
 
+
 def _corrstring(msmd_tool) -> str:
     """
     Derive parallel-hand correlation string from the first data description.
@@ -101,9 +121,9 @@ def _corrstring(msmd_tool) -> str:
         ddids = msmd_tool.datadescids()
         polid = msmd_tool.polidfordatadesc(int(ddids[0]))
         corrtypes = msmd_tool.corrtypesforpol(int(polid))
-        if 5 in corrtypes:   # RR present → circular
+        if 5 in corrtypes:  # RR present → circular
             return "RR,LL"
-        if 9 in corrtypes:   # XX present → linear
+        if 9 in corrtypes:  # XX present → linear
             return "XX,YY"
     except Exception as e:
         task_log(f"Warning: could not determine corrstring: {e}")
@@ -113,6 +133,7 @@ def _corrstring(msmd_tool) -> str:
 # ---------------------------------------------------------------------------
 # tst_delay_spw: inner-third channel range per spw
 # ---------------------------------------------------------------------------
+
 
 def _tst_delay_spw(channels: list[int]) -> str:
     """
@@ -132,6 +153,7 @@ def _tst_delay_spw(channels: list[int]) -> str:
 # ---------------------------------------------------------------------------
 # Quack scan identification
 # ---------------------------------------------------------------------------
+
 
 def _quack_scan_string(msmd_tool, scan_numbers: list[int]) -> str:
     """
@@ -157,14 +179,14 @@ def _quack_scan_string(msmd_tool, scan_numbers: list[int]) -> str:
 # ---------------------------------------------------------------------------
 
 _INTENT_KEYS = {
-    "CALIBRATE_FLUX":        "flux",
-    "CALIBRATE_BANDPASS":    "bandpass",
-    "CALIBRATE_DELAY":       "delay",
-    "CALIBRATE_PHASE":       "phase",
-    "CALIBRATE_AMPLI":       "ampli",
-    "CALIBRATE_POL_ANGLE":   "pol_angle",
+    "CALIBRATE_FLUX": "flux",
+    "CALIBRATE_BANDPASS": "bandpass",
+    "CALIBRATE_DELAY": "delay",
+    "CALIBRATE_PHASE": "phase",
+    "CALIBRATE_AMPLI": "ampli",
+    "CALIBRATE_POL_ANGLE": "pol_angle",
     "CALIBRATE_POL_LEAKAGE": "pol_leakage",
-    "CALIBRATE_POINTING":    "pointing",
+    "CALIBRATE_POINTING": "pointing",
 }
 
 
@@ -207,16 +229,14 @@ def _select_string(ids: list[int]) -> str:
 # tau
 # ---------------------------------------------------------------------------
 
+
 def _calculate_tau(msname: str, startdate: float) -> float:
     """
     Calculate zenith opacity via plotweather.
 
     Known broken weather-station periods use 100% seasonal model.
     """
-    broken = (
-        (55918.80 <= startdate <= 55938.98) or
-        (56253.6  <= startdate <= 56271.6)
-    )
+    broken = (55918.80 <= startdate <= 55938.98) or (56253.6 <= startdate <= 56271.6)
     weight = 1.0 if broken else 0.5
     if broken:
         task_log("Weather station broken during this period, using seasonal_weight=1.0")
@@ -231,6 +251,7 @@ def _calculate_tau(msname: str, startdate: float) -> float:
 # ---------------------------------------------------------------------------
 # Main stage
 # ---------------------------------------------------------------------------
+
 
 def run_msmd(ctx: PipelineContext) -> PipelineContext:
     """
@@ -265,12 +286,16 @@ def run_msmd(ctx: PipelineContext) -> PipelineContext:
         ctx["numFields"] = n_fields
         ctx["numAntenna"] = n_ant
 
-        task_log(f"MS: {n_spw} spws, {n_fields} fields, {n_ant} antennas, "
-                 f"{len(scan_numbers)} scans")
+        task_log(
+            f"MS: {n_spw} spws, {n_fields} fields, {n_ant} antennas, "
+            f"{len(scan_numbers)} scans"
+        )
 
         # --- Start date (MJD) -------------------------------------------
         summary = msmd.summary()
-        ctx["startdate"] = float(summary.get("begin time", summary.get("BeginTime", 0.0)))
+        ctx["startdate"] = float(
+            summary.get("begin time", summary.get("BeginTime", 0.0))
+        )
         task_log(f"Observation start: {ctx['startdate']:.4f} MJD")
 
         # --- Spectral window info ---------------------------------------
@@ -330,48 +355,50 @@ def run_msmd(ctx: PipelineContext) -> PipelineContext:
         # --- Calibrator assignments by intent ---------------------------
         cal_fields, cal_scans = _calibrator_lists(msmd, all_intents)
 
-        ctx["flux_field_list"]     = cal_fields["flux"]
+        ctx["flux_field_list"] = cal_fields["flux"]
         ctx["bandpass_field_list"] = cal_fields["bandpass"]
-        ctx["delay_field_list"]    = cal_fields["delay"]
-        ctx["phase_field_list"]    = cal_fields["phase"]
-        ctx["amp_field_list"]      = cal_fields["ampli"]
-        ctx["pol_angle_field_list"]  = cal_fields["pol_angle"]
-        ctx["pol_lkg_field_list"]    = cal_fields["pol_leakage"]
+        ctx["delay_field_list"] = cal_fields["delay"]
+        ctx["phase_field_list"] = cal_fields["phase"]
+        ctx["amp_field_list"] = cal_fields["ampli"]
+        ctx["pol_angle_field_list"] = cal_fields["pol_angle"]
+        ctx["pol_lkg_field_list"] = cal_fields["pol_leakage"]
 
-        ctx["flux_scan_list"]      = cal_scans["flux"]
-        ctx["bandpass_scan_list"]  = cal_scans["bandpass"]
-        ctx["delay_scan_list"]     = cal_scans["delay"]
-        ctx["phase_scan_list"]     = cal_scans["phase"]
+        ctx["flux_scan_list"] = cal_scans["flux"]
+        ctx["bandpass_scan_list"] = cal_scans["bandpass"]
+        ctx["delay_scan_list"] = cal_scans["delay"]
+        ctx["phase_scan_list"] = cal_scans["phase"]
 
         # Select strings — with intent-chain fallbacks matching original pipeline
-        ctx["flux_field_select_string"]      = _select_string(cal_fields["flux"])
-        ctx["bandpass_field_select_string"]  = (
-            _select_string(cal_fields["bandpass"]) or
-            _select_string(cal_fields["flux"])
-        )
+        ctx["flux_field_select_string"] = _select_string(cal_fields["flux"])
+        ctx["bandpass_field_select_string"] = _select_string(
+            cal_fields["bandpass"]
+        ) or _select_string(cal_fields["flux"])
         ctx["delay_field_select_string"] = (
-            _select_string(cal_fields["delay"]) or
-            ctx["bandpass_field_select_string"]
+            _select_string(cal_fields["delay"]) or ctx["bandpass_field_select_string"]
         )
-        ctx["phase_field_select_string"]     = _select_string(cal_fields["phase"])
-        ctx["amp_field_select_string"]       = (
-            _select_string(cal_fields["ampli"]) or
-            ctx["phase_field_select_string"]
+        ctx["phase_field_select_string"] = _select_string(cal_fields["phase"])
+        ctx["amp_field_select_string"] = (
+            _select_string(cal_fields["ampli"]) or ctx["phase_field_select_string"]
         )
-        ctx["bandpass_scan_select_string"]   = (
-            _select_string(cal_scans["bandpass"]) or
-            _select_string(cal_scans["flux"])
+        ctx["bandpass_scan_select_string"] = _select_string(
+            cal_scans["bandpass"]
+        ) or _select_string(cal_scans["flux"])
+        ctx["delay_scan_select_string"] = (
+            _select_string(cal_scans["delay"]) or ctx["bandpass_scan_select_string"]
         )
-        ctx["delay_scan_select_string"]      = (
-            _select_string(cal_scans["delay"]) or
-            ctx["bandpass_scan_select_string"]
-        )
-        ctx["phase_scan_select_string"]      = _select_string(cal_scans["phase"])
+        ctx["phase_scan_select_string"] = _select_string(cal_scans["phase"])
 
         # Union of all calibrator fields for refant selection
         all_cal_fields: set[int] = set()
-        for key in ["flux", "bandpass", "delay", "phase", "ampli",
-                    "pol_angle", "pol_leakage"]:
+        for key in [
+            "flux",
+            "bandpass",
+            "delay",
+            "phase",
+            "ampli",
+            "pol_angle",
+            "pol_leakage",
+        ]:
             all_cal_fields.update(cal_fields[key])
         ctx["calibrator_field_select_string"] = _select_string(sorted(all_cal_fields))
 
@@ -386,37 +413,50 @@ def run_msmd(ctx: PipelineContext) -> PipelineContext:
         # If intent-based lists are empty, try name-based as fallback and
         # update the unified lists that run_polcal will use
         if not ctx["pol_angle_field_list"] and ctx["pol_angle_field_list_by_name"]:
-            task_log("No POL_ANGLE intent found; using name-matched pol angle calibrators")
+            task_log(
+                "No POL_ANGLE intent found; using name-matched pol angle calibrators"
+            )
             ctx["pol_angle_field_list"] = ctx["pol_angle_field_list_by_name"]
 
         if not ctx["pol_lkg_field_list"] and ctx["pol_lkg_field_list_by_name"]:
-            task_log("No POL_LEAKAGE intent found; using name-matched leakage calibrators")
+            task_log(
+                "No POL_LEAKAGE intent found; using name-matched leakage calibrators"
+            )
             ctx["pol_lkg_field_list"] = ctx["pol_lkg_field_list_by_name"]
 
         if not ctx["pol_angle_field_list"]:
-            task_log("WARNING: No pol angle calibrator found; polarization cal disabled")
+            task_log(
+                "WARNING: No pol angle calibrator found; polarization cal disabled"
+            )
             ctx["do_pol"] = False
 
         # --- 3C84 detection ---------------------------------------------
         fields_3c84 = [
-            fid for fid, name in enumerate(field_names)
+            fid
+            for fid, name in enumerate(field_names)
             if any(v in name.lower() for v in _3C84_VARIANTS)
         ]
-        ctx["cal3C84_d"] = any(f in cal_fields["delay"]    for f in fields_3c84)
+        ctx["cal3C84_d"] = any(f in cal_fields["delay"] for f in fields_3c84)
         ctx["cal3C84_bp"] = any(f in cal_fields["bandpass"] for f in fields_3c84)
-        ctx["uvrange3C84"] = "0~1800klambda" if (ctx["cal3C84_d"] or ctx["cal3C84_bp"]) else ""
+        ctx["uvrange3C84"] = (
+            "0~1800klambda" if (ctx["cal3C84_d"] or ctx["cal3C84_bp"]) else ""
+        )
 
         if fields_3c84:
-            task_log(f"3C84 present as field(s) {fields_3c84}; "
-                     f"cal3C84_d={ctx['cal3C84_d']}, cal3C84_bp={ctx['cal3C84_bp']}")
+            task_log(
+                f"3C84 present as field(s) {fields_3c84}; "
+                f"cal3C84_d={ctx['cal3C84_d']}, cal3C84_bp={ctx['cal3C84_bp']}"
+            )
 
         # --- Computed calibration parameters ----------------------------
         ctx["minBL_for_cal"] = compute_minBL(n_ant)
         critfrac_bb, critfrac_spw = compute_critfrac(n_spw)
-        ctx["critfrac"]        = critfrac_bb
+        ctx["critfrac"] = critfrac_bb
         ctx["critfrac_per_spw"] = critfrac_spw
-        task_log(f"minBL_for_cal={ctx['minBL_for_cal']}, "
-                 f"critfrac(bb)={critfrac_bb:.4f}, critfrac(spw)={critfrac_spw:.4f}")
+        task_log(
+            f"minBL_for_cal={ctx['minBL_for_cal']}, "
+            f"critfrac(bb)={critfrac_bb:.4f}, critfrac(spw)={critfrac_spw:.4f}"
+        )
 
         # --- Quack scan string ------------------------------------------
         ctx["quack_scan_string"] = _quack_scan_string(msmd, scan_numbers)

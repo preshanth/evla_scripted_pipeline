@@ -274,5 +274,7 @@ def _log_cal_quality(label: str, table: str, threshold: float) -> None:
     if med > threshold:
         log.warning(
             "%s antenna-median flagged fraction %.4f > threshold %.4f",
-            label, med, threshold,
+            label,
+            med,
+            threshold,
         )

@@ -9,29 +9,29 @@ on:
 jobs:
   tests:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python: [3.10, 3.12]
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.8.1
         with:
-          python-version: ${{ matrix.python }}
+          pixi-version: latest
+          cache: true
 
-      - name: Install minimal deps and package
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          python -m pip install -c constraints.txt protobuf==3.20.3
-          python -m pip install -e .
+      - name: Run lightweight unit tests
+        run: pixi run pytest -q test/test_simple_utils.py test/test_run_weblog.py
 
-      - name: Install test-only deps
-        run: |
-          python -m pip install pytest
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Run lightweight tests
-        run: |
-          # Run lightweight unit tests that do not require CASA
-          pytest -q test/test_simple_utils.py
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          pixi-version: latest
+          cache: true
+
+      - name: Lint
+        run: pixi run lint

@@ -69,7 +69,8 @@ examples:
         version=f"evla-pipeline {__version_str__}",
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="enable DEBUG logging",
     )

@@ -112,6 +112,13 @@ def run_apply_cals(ctx: PipelineContext) -> PipelineContext:
         target_ms = ""
 
     ctx["target_ms"] = target_ms
+    # Store flag fractions for validation and weblog.
+    ctx["flag_frac_before_applycal"] = (
+        before.get("flagged", 0) / before["total"] if before.get("total") else 0.0
+    )
+    ctx["flag_frac_after_applycal"] = (
+        after.get("flagged", 0) / after["total"] if after.get("total") else 0.0
+    )
     return ctx
 
 

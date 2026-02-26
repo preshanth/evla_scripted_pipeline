@@ -6,6 +6,7 @@ they are always sequential and neither justifies its own file.
 """
 
 import logging
+import shutil
 from pathlib import Path
 
 from casatasks import hanningsmooth, importasdm
@@ -62,7 +63,17 @@ def run_hanning(ctx: PipelineContext) -> PipelineContext:
         return ctx
 
     msname = ctx["msname"]
-    log.info("Applying Hanning smoothing to %s", msname)
-    hanningsmooth(vis=msname, datacolumn="data", outputvis="")
-    log.info("Hanning smoothing complete")
+    tmp_ms = msname + ".hanning"
+    log.info("Applying Hanning smoothing: %s -> %s", msname, tmp_ms)
+
+    # CASA hanningsmooth requires a distinct outputvis — smooth to a temp path,
+    # then replace the original so the rest of the pipeline sees the same msname.
+    if Path(tmp_ms).exists():
+        shutil.rmtree(tmp_ms)
+
+    hanningsmooth(vis=msname, datacolumn="data", outputvis=tmp_ms)
+
+    shutil.rmtree(msname)
+    shutil.move(tmp_ms, msname)
+    log.info("Hanning smoothing complete: %s", msname)
     return ctx

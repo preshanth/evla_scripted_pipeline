@@ -59,14 +59,10 @@ def run_checkflag(ctx: PipelineContext) -> PipelineContext:
         savepars=True,
     )
 
-    summary = flagdata(
-        vis=cal_ms, mode="summary", action="calculate", savepars=False
-    )
+    summary = flagdata(vis=cal_ms, mode="summary", action="calculate", savepars=False)
     total = int(summary.get("total", 0))
     flagged = int(summary.get("flagged", 0))
     frac = flagged / total if total else 0.0
-    log.info(
-        "After checkflag: %.1f%% of calibrators.ms data flagged", frac * 100
-    )
+    log.info("After checkflag: %.1f%% of calibrators.ms data flagged", frac * 100)
 
     return ctx

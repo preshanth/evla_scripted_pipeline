@@ -31,13 +31,12 @@ log = logging.getLogger(__name__)
 # Power-law fitting helpers
 # ---------------------------------------------------------------------------
 
+
 def _log_power_law(log_nu: np.ndarray, log_s0: float, spix: float) -> np.ndarray:
     return log_s0 + spix * log_nu
 
 
-def _fit_one_band(
-    lfreqs: list, lfds: list, lerrs: list
-) -> tuple[float, float, float]:
+def _fit_one_band(lfreqs: list, lfds: list, lerrs: list) -> tuple[float, float, float]:
     """Fit log(S) = aa + bb*log(ν). Returns (aa, bb, snr)."""
     if len(lfds) <= 2:
         return (lfds[0] if lfds else 0.0), 0.0, 0.0
@@ -149,6 +148,7 @@ def _fit_power_law(
 # Stage
 # ---------------------------------------------------------------------------
 
+
 def run_fluxboot(ctx: PipelineContext) -> PipelineContext:
     """
     Bootstrap flux scale from primary calibrator to all transfer fields.
@@ -215,5 +215,19 @@ def run_fluxboot(ctx: PipelineContext) -> PipelineContext:
                     )
 
     ctx["table_flux_gaincal_fcal"] = t_fcal
+    # Store per-source fitting results for downstream inspection and testing.
+    # Each entry: {"source": str, "spws": list[int], "flux_jy": float,
+    #              "spix": float, "snr": float, "reffreq_ghz": float}
+    ctx["flux_fitting_results"] = [
+        {
+            "source": r[0],
+            "spws": r[1],
+            "flux_jy": r[2],
+            "spix": r[3],
+            "snr": r[4],
+            "reffreq_ghz": r[5],
+        }
+        for r in fitting_results
+    ]
     log.info("Flux bootstrapping complete — MODEL column updated for all calibrators")
     return ctx

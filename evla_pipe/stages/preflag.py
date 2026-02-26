@@ -30,7 +30,9 @@ def _read_online_flags(flagonline_txt: str) -> list[str]:
     """
     path = Path(flagonline_txt)
     if not path.exists():
-        log.warning("Online flag file not found: %s — skipping online flags", flagonline_txt)
+        log.warning(
+            "Online flag file not found: %s — skipping online flags", flagonline_txt
+        )
         return []
     lines = [ln.strip() for ln in path.read_text().splitlines()]
     # Drop blank lines and comments

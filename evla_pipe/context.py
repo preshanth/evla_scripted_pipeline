@@ -17,6 +17,7 @@ from typing import Any, TypedDict
 # QA result type
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class QAResult:
     """
@@ -55,7 +56,8 @@ class QAResult:
         if failing_spws:
             parts.append(f"Fail spws: {','.join(str(s) for s in sorted(failing_spws))}")
         if partial_spws:
-            parts.append(f"Partial spws: {','.join(str(s) for s in sorted(partial_spws))}")
+            spw_str = ",".join(str(s) for s in sorted(partial_spws))
+            parts.append(f"Partial spws: {spw_str}")
         if failing_bb:
             parts.append(f"Fail basebands: {','.join(sorted(failing_bb))}")
         if partial_bb:
@@ -88,6 +90,7 @@ class QAResult:
 # Pipeline context
 # ---------------------------------------------------------------------------
 
+
 class PipelineContext(TypedDict, total=False):
     """
     All pipeline state passed between stages.
@@ -98,36 +101,36 @@ class PipelineContext(TypedDict, total=False):
     """
 
     # --- Input parameters (make_default_context) ---------------------------
-    SDM_name: str          # base name, no .ms suffix
-    msname: str            # SDM_name + ".ms"
-    flagonline_txt: str    # path to online flag commands file written by importasdm
-    workdir: str           # root output directory; all pipeline outputs land here
-    do_pol: bool           # run polarization calibration
-    do_hanning: bool       # apply Hanning smoothing after import
-    enable_plots: bool     # generate diagnostic plots
+    SDM_name: str  # base name, no .ms suffix
+    msname: str  # SDM_name + ".ms"
+    flagonline_txt: str  # path to online flag commands file written by importasdm
+    workdir: str  # root output directory; all pipeline outputs land here
+    do_pol: bool  # run polarization calibration
+    do_hanning: bool  # apply Hanning smoothing after import
+    enable_plots: bool  # generate diagnostic plots
 
     # --- msmd: basic MS dimensions -----------------------------------------
     numSpws: int
     numFields: int
     numAntenna: int
-    startdate: float       # MJD of first integration
-    int_time: float        # maximum integration time in seconds
-    tau: float             # zenith opacity from plotweather
-    corrstring: str        # "RR,LL" or "XX,YY" from receptor type
+    startdate: float  # MJD of first integration
+    int_time: float  # maximum integration time in seconds
+    tau: float  # zenith opacity from plotweather
+    corrstring: str  # "RR,LL" or "XX,YY" from receptor type
 
     # --- msmd: field and spw metadata --------------------------------------
     field_names: list[str]
-    field_positions: Any   # numpy array shape (2, 1, N) in radians
+    field_positions: Any  # numpy array shape (2, 1, N) in radians
     center_frequencies: list[float]  # Hz, one per spw
-    channels: list[int]    # number of channels per spw
-    spw_names: list[str]   # EVLA_L#A0C0#0 style names
-    basebands: list[str]   # unique baseband names, e.g. ["A0C0", "B0D0"]
-    all_spw: str           # CASA selection string "0~N-1"
-    tst_delay_spw: str     # CASA spw:chan selection, mid-channels per spw,
-                           # avoiding baseband edge roll-offs.
-                           # e.g. "0:32~96,1:32~96,..." for 128-chan spws.
-    intents: dict[int, list[str]]    # scan_id -> list of intent strings
-    field_spws: list[list[int]]      # field_id -> list of spw IDs
+    channels: list[int]  # number of channels per spw
+    spw_names: list[str]  # EVLA_L#A0C0#0 style names
+    basebands: list[str]  # unique baseband names, e.g. ["A0C0", "B0D0"]
+    all_spw: str  # CASA selection string "0~N-1"
+    tst_delay_spw: str  # CASA spw:chan selection, mid-channels per spw,
+    # avoiding baseband edge roll-offs.
+    # e.g. "0:32~96,1:32~96,..." for 128-chan spws.
+    intents: dict[int, list[str]]  # scan_id -> list of intent strings
+    field_spws: list[list[int]]  # field_id -> list of spw IDs
     field_scan_map: dict[int, list[int]]  # field_id -> list of scan IDs
 
     # --- msmd: calibrator field and scan lists -----------------------------
@@ -168,13 +171,13 @@ class PipelineContext(TypedDict, total=False):
 
     # --- msmd: computed calibration parameters -----------------------------
     # Both stored in context so they can be inspected and overridden.
-    minBL_for_cal: int     # max(3, numAntenna // 2)
-    critfrac: float        # per-baseband threshold: 0.9 / (numSpws / 8)
+    minBL_for_cal: int  # max(3, numAntenna // 2)
+    critfrac: float  # per-baseband threshold: 0.9 / (numSpws / 8)
     critfrac_per_spw: float  # per-spw threshold: 0.9 / numSpws
 
-    cal3C84_d: bool        # 3C84 (J0319+4130) is delay calibrator
-    cal3C84_bp: bool       # 3C84 is bandpass calibrator
-    uvrange3C84: str       # ">0.15klambda" when 3C84 present, else ""
+    cal3C84_d: bool  # 3C84 (J0319+4130) is delay calibrator
+    cal3C84_bp: bool  # 3C84 is bandpass calibrator
+    uvrange3C84: str  # ">0.15klambda" when 3C84 present, else ""
 
     # --- Cumulative calibration table lists --------------------------------
     # priorcals: populated by run_priorcals, read-only after that.
@@ -237,16 +240,19 @@ class PipelineContext(TypedDict, total=False):
     table_flux_gaincal: str
 
     # Polarization cals
-    table_pol_Xf: str      # cross-hand delay
-    table_pol_Df: str      # leakage D-terms
-    table_pol_Xa: str      # polarization angle
+    table_pol_Xf: str  # cross-hand delay
+    table_pol_Df: str  # leakage D-terms
+    table_pol_Xa: str  # polarization angle
 
     # --- testBPdcals / semiFinal -------------------------------------------
-    refAnt: str            # reference antenna for gaincal/bandpass
+    refAnt: str  # reference antenna for gaincal/bandpass
 
     # --- solint ------------------------------------------------------------
-    solint: float          # solution interval in seconds
-    calibrators_ms: str    # path to split calibrators-only MS
+    # gain_solint1 = integration time as CASA string e.g. "2.02s"
+    # gain_solint2 = max scan duration × 1.01 as CASA string e.g. "123.45s"
+    gain_solint1: str
+    gain_solint2: str
+    calibrators_ms: str  # path to split calibrators-only MS
 
     # --- QA2 per stage -----------------------------------------------------
     # Each value is a QAResult with per-spw and per-baseband breakdown.
@@ -267,10 +273,29 @@ class PipelineContext(TypedDict, total=False):
     QA2_polcal_Df: QAResult
     QA2_polcal_Xa: QAResult
 
+    # --- fluxboot results --------------------------------------------------
+    # Per-source power-law fitting results from fluxscale bootstrap.
+    # Each entry: {"source", "spws", "flux_jy", "spix", "snr", "reffreq_ghz"}
+    flux_fitting_results: list
+
+    # --- applycal flag fractions -------------------------------------------
+    flag_frac_before_applycal: float
+    flag_frac_after_applycal: float
+
+    # --- apply_cals output -------------------------------------------------
+    target_ms: str  # path to split target.ms
+
+    # --- weblog ------------------------------------------------------------
+    # stage_records: populated by _timed() in pipeline.py as each stage runs.
+    # Each entry: {"name": str, "label": str, "duration_s": float}
+    stage_records: list
+    weblog_path: str  # absolute path to workdir/weblog/index.html after run_weblog
+
 
 # ---------------------------------------------------------------------------
 # Parameter formulas
 # ---------------------------------------------------------------------------
+
 
 def compute_minBL(num_antenna: int) -> int:
     """
@@ -311,6 +336,7 @@ def compute_critfrac(num_spws: int) -> tuple[float, float]:
 # Default context factory
 # ---------------------------------------------------------------------------
 
+
 def make_default_context(sdm_name: str, **kwargs) -> PipelineContext:
     """
     Create an initial pipeline context from an SDM name.
@@ -337,7 +363,7 @@ def make_default_context(sdm_name: str, **kwargs) -> PipelineContext:
         "SDM_name": sdm_name,
         "msname": f"{sdm_name}.ms",
         "flagonline_txt": f"{sdm_name}.flagonline.txt",
-        "workdir": "",          # filled by run_startup
+        "workdir": "",  # filled by run_startup
         "calibrators_ms": "",  # filled by run_startup (workdir/calibrators.ms)
         "do_pol": False,
         "do_hanning": True,
@@ -345,6 +371,7 @@ def make_default_context(sdm_name: str, **kwargs) -> PipelineContext:
         "priorcals": [],
         "final_caltables": [],
         "pol_caltables": [],
+        "stage_records": [],
     }
     ctx.update(kwargs)
     return ctx
