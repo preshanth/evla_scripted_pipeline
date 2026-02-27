@@ -28,7 +28,8 @@ examples:
   evla-pipeline dataset.asdm
   evla-pipeline dataset.asdm --polarization
   evla-pipeline dataset.asdm --hanning
-  evla-pipeline dataset.asdm --resume-from run_fluxboot
+  evla-pipeline dataset.asdm --resume
+  evla-pipeline dataset.asdm --resume-from fluxboot
   evla-pipeline dataset.asdm --skip run_final_flags
         """,
     )
@@ -51,9 +52,14 @@ examples:
         help="output directory (default: <sdm_stem>_pipeline/ in current directory)",
     )
     parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="auto-resume from last checkpoint in workdir",
+    )
+    parser.add_argument(
         "--resume-from",
         metavar="STAGE",
-        help="resume from a named stage function (e.g. run_fluxboot)",
+        help="resume from a named stage (e.g. fluxboot or run_fluxboot)",
     )
     parser.add_argument(
         "--skip",
@@ -97,6 +103,7 @@ def main() -> None:
             skip_hanning=not args.hanning,
             enable_polarization=args.polarization,
             workdir=args.workdir,
+            resume=args.resume,
             resume_from=args.resume_from,
             skip_steps=args.skip_steps,
         )

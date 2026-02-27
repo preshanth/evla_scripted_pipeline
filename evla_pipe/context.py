@@ -10,7 +10,9 @@ This module defines:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import json
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any, TypedDict
 
 # ---------------------------------------------------------------------------
@@ -292,6 +294,9 @@ class PipelineContext(TypedDict, total=False):
     stage_records: list
     weblog_path: str  # absolute path to workdir/weblog/index.html after run_weblog
 
+    # --- checkpoint (internal) ---------------------------------------------
+    _completed_stages: list  # list of stage name strings; written by save_checkpoint
+
 
 # ---------------------------------------------------------------------------
 # Parameter formulas
@@ -376,3 +381,80 @@ def make_default_context(sdm_name: str, **kwargs) -> PipelineContext:
     }
     ctx.update(kwargs)
     return ctx
+
+
+# ---------------------------------------------------------------------------
+# Checkpoint serialization helpers
+# ---------------------------------------------------------------------------
+
+# These fields are non-JSON-serializable numpy arrays derived by run_msmd.
+# They are excluded from the checkpoint and re-derived on resume.
+_EXCLUDE_FROM_CHECKPOINT = {"field_positions"}
+
+
+def _serialize_ctx(ctx: PipelineContext) -> dict:
+    """Return a JSON-safe copy of ctx, dropping non-serializable fields."""
+    out = {}
+    for k, v in ctx.items():
+        if k in _EXCLUDE_FROM_CHECKPOINT:
+            continue
+        if isinstance(v, QAResult):
+            out[k] = {"__QAResult__": True, **asdict(v)}
+        else:
+            out[k] = v
+    return out
+
+
+def _deserialize_ctx(data: dict) -> PipelineContext:
+    """Reconstruct ctx from a JSON-loaded dict."""
+    ctx: PipelineContext = {}
+    for k, v in data.items():
+        if isinstance(v, dict) and v.get("__QAResult__"):
+            d = {kk: vv for kk, vv in v.items() if kk != "__QAResult__"}
+            ctx[k] = QAResult(**d)
+        else:
+            ctx[k] = v
+    return ctx
+
+
+def save_checkpoint(ctx: PipelineContext, stage_name: str) -> None:
+    """Append stage_name to _completed_stages and atomically write checkpoint.
+
+    Writes to ``<workdir>/pipeline_context/checkpoint.json`` via a tmp-then-
+    rename to avoid a partial file if the process is killed mid-write.
+    """
+    workdir = ctx.get("workdir", "")
+    if not workdir:
+        return
+    completed = list(ctx.get("_completed_stages") or [])
+    completed.append(stage_name)
+    ctx["_completed_stages"] = completed
+    ckpt_dir = Path(workdir) / "pipeline_context"
+    ckpt_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "completed_stages": completed,
+        "cli_fingerprint": {
+            "SDM_name": ctx.get("SDM_name", ""),
+            "do_pol": ctx.get("do_pol", False),
+            "do_hanning": ctx.get("do_hanning", True),
+        },
+        "context": _serialize_ctx(ctx),
+    }
+    tmp = ckpt_dir / "checkpoint.json.tmp"
+    tmp.write_text(json.dumps(payload, indent=2))
+    tmp.rename(ckpt_dir / "checkpoint.json")
+
+
+def load_checkpoint(workdir: str) -> tuple[PipelineContext, list[str], dict]:
+    """Load checkpoint from workdir.
+
+    Returns
+    -------
+    (ctx, completed_stages, cli_fingerprint)
+    """
+    ckpt = Path(workdir) / "pipeline_context" / "checkpoint.json"
+    if not ckpt.exists():
+        raise FileNotFoundError(f"No checkpoint found at {ckpt}")
+    payload = json.loads(ckpt.read_text())
+    ctx = _deserialize_ctx(payload["context"])
+    return ctx, payload["completed_stages"], payload["cli_fingerprint"]

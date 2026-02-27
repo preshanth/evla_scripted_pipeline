@@ -29,9 +29,14 @@ Stage sequence
 """
 
 import time
-import warnings
+from pathlib import Path
 
-from evla_pipe.context import PipelineContext, make_default_context
+from evla_pipe.context import (
+    PipelineContext,
+    load_checkpoint,
+    make_default_context,
+    save_checkpoint,
+)
 from evla_pipe.stages.apply_cals import run_apply_cals
 from evla_pipe.stages.checkflag import run_checkflag
 from evla_pipe.stages.final_cals import run_final_cals
@@ -58,6 +63,124 @@ except ImportError:
     __version_str__ = "unknown"
 
 
+# Ordered list of (name, label, func) for all pipeline stages.
+# The orchestrator loops over this to support resume/skip logic.
+STAGE_SEQUENCE = [
+    ("startup", "Startup", run_startup),
+    ("import", "Import ASDM", run_import),
+    ("hanning", "Hanning Smooth", run_hanning),
+    ("msmd", "MS Metadata", run_msmd),
+    ("preflag", "Pre-flag", run_preflag),
+    ("priorcals", "Prior Calibrations", run_priorcals),
+    ("setjy", "Set Flux Model", run_setjy),
+    ("initial_bp", "Initial Bandpass", run_initial_bp),
+    ("initial_rflag", "Initial RFlag", run_initial_rflag),
+    ("semi_final_bp_1", "Semi-final BP (pass 1)", run_semi_final_bp),
+    ("checkflag", "Checkflag", run_checkflag),
+    ("semi_final_bp_2", "Semi-final BP (pass 2)", run_semi_final_bp),
+    ("solint", "Solution Interval", run_solint),
+    ("test_gains", "Test Gains", run_test_gains),
+    ("flux_gains", "Flux Gains", run_flux_gains),
+    ("fluxboot", "Flux Bootstrap", run_fluxboot),
+    ("final_cals", "Final Calibrations", run_final_cals),
+    ("polcal", "Polarization Cal", run_polcal),
+    ("apply_cals", "Apply Calibrations", run_apply_cals),
+    ("final_flags", "Final Flags", run_final_flags),
+]
+
+
+def _build_resume_skip_set(
+    ctx: PipelineContext,
+    workdir: str | None,
+    resume_from: str | None,
+    skip_steps: list | None,
+) -> tuple[PipelineContext, set[str]]:
+    """Load checkpoint and return (updated_ctx, skip_set).
+
+    Called only when ``resume`` or ``resume_from`` is set.
+    """
+    _workdir = workdir or (Path(ctx.get("SDM_name", "")).stem + "_pipeline")
+    loaded_ctx, completed, fingerprint = load_checkpoint(_workdir)
+    _check_fingerprint(fingerprint, ctx)
+
+    # Restore checkpoint state, then re-apply CLI overrides
+    sdm = ctx.get("SDM_name", "")
+    do_pol = ctx.get("do_pol", False)
+    do_hanning = ctx.get("do_hanning", True)
+    enable_plots = ctx.get("enable_plots", True)
+    ctx = loaded_ctx
+    ctx["SDM_name"] = sdm
+    ctx["do_pol"] = do_pol
+    ctx["do_hanning"] = do_hanning
+    ctx["enable_plots"] = enable_plots
+    if workdir:
+        ctx["workdir"] = workdir
+
+    skip_set: set[str] = set(skip_steps or [])
+    if resume_from:
+        target = resume_from.removeprefix("run_")
+        for name, _, _ in STAGE_SEQUENCE:
+            if name == target:
+                break
+            skip_set.add(name)
+    else:
+        skip_set.update(completed)
+
+    # msmd always re-runs (field_positions not persisted); startup is safe to re-run
+    skip_set.discard("msmd")
+    skip_set.discard("startup")
+    return ctx, skip_set
+
+
+def _run_stages(
+    ctx: PipelineContext,
+    skip_set: set[str],
+    skip_hanning: bool,
+    verbose: bool,
+) -> PipelineContext:
+    """Execute STAGE_SEQUENCE, skipping stages in skip_set."""
+
+    def _timed(name: str, label: str, func) -> PipelineContext:
+        nonlocal ctx
+        if verbose:
+            print(f":: {label}")
+        t0 = time.monotonic()
+        ctx = func(ctx)
+        dt = time.monotonic() - t0
+        ctx.setdefault("stage_records", []).append(
+            {"name": name, "label": label, "duration_s": round(dt, 1)}
+        )
+        save_checkpoint(ctx, name)
+        return ctx
+
+    try:
+        for name, label, func in STAGE_SEQUENCE:
+            if name == "hanning" and skip_hanning:
+                continue
+            if name in skip_set:
+                if verbose:
+                    print(f":: SKIP {label} (checkpoint)")
+                continue
+            ctx = _timed(name, label, func)
+    finally:
+        ctx = run_weblog(ctx)
+    return ctx
+
+
+def _check_fingerprint(stored: dict, ctx: PipelineContext) -> None:
+    """Raise ValueError if checkpoint was made for a different SDM or pol setting."""
+    if stored.get("SDM_name") != ctx.get("SDM_name"):
+        raise ValueError(
+            f"Checkpoint SDM '{stored['SDM_name']}' does not match "
+            f"current SDM '{ctx['SDM_name']}'. Wrong workdir?"
+        )
+    if stored.get("do_pol") != ctx.get("do_pol"):
+        raise ValueError(
+            "Polarization flag differs from checkpoint. "
+            "Use --force-resume to override (not yet implemented)."
+        )
+
+
 def continuum(
     sdm_name: str,
     skip_hanning: bool = False,
@@ -66,6 +189,7 @@ def continuum(
     enable_polarization: bool = False,
     enable_plots: bool = True,
     workdir: str | None = None,
+    resume: bool = False,
     resume_from: str | None = None,
     skip_steps: list | None = None,
 ) -> PipelineContext:
@@ -86,23 +210,19 @@ def continuum(
         Enable polarization calibration (default: False).
     enable_plots : bool
         Enable plotting output (default: True).
+    resume : bool
+        Auto-resume from last checkpoint in workdir.
     resume_from : str, optional
-        Unused — reserved for future resume support.
+        Resume from a specific stage name (e.g. "fluxboot" or "run_fluxboot").
+        All prior stages are skipped.
     skip_steps : list, optional
-        Unused — reserved for future skip support.
+        Explicit list of stage names to skip.
 
     Returns
     -------
     PipelineContext
         Final pipeline context (includes weblog_path if weblog was written).
     """
-    if resume_from or skip_steps:
-        warnings.warn(
-            "resume_from and skip_steps are not yet implemented"
-            " in the refactored pipeline",
-            stacklevel=2,
-        )
-
     if verbose:
         print(f":: Starting EVLA continuum pipeline v{__version_str__}")
 
@@ -118,49 +238,14 @@ def continuum(
     if workdir:
         ctx["workdir"] = workdir
 
-    def _timed(name: str, label: str, func, ctx: PipelineContext) -> PipelineContext:
-        """Run a stage function, record name/label/duration into ctx["stage_records"]."""  # noqa: E501
-        if verbose:
-            print(f":: {label}")
-        t0 = time.monotonic()
-        ctx = func(ctx)
-        dt = time.monotonic() - t0
-        ctx.setdefault("stage_records", []).append(
-            {"name": name, "label": label, "duration_s": round(dt, 1)}
-        )
-        return ctx
+    # --- Resume: build skip_set ---
+    skip_set: set[str] = set()
+    if resume or resume_from:
+        ctx, skip_set = _build_resume_skip_set(ctx, workdir, resume_from, skip_steps)
+    elif skip_steps:
+        skip_set = set(skip_steps)
 
-    try:
-        ctx = _timed("startup", "Startup", run_startup, ctx)
-        ctx = _timed("import", "Import ASDM", run_import, ctx)
-
-        if not skip_hanning:
-            ctx = _timed("hanning", "Hanning Smooth", run_hanning, ctx)
-
-        ctx = _timed("msmd", "MS Metadata", run_msmd, ctx)
-        ctx = _timed("preflag", "Pre-flag", run_preflag, ctx)
-        ctx = _timed("priorcals", "Prior Calibrations", run_priorcals, ctx)
-        ctx = _timed("setjy", "Set Flux Model", run_setjy, ctx)
-        ctx = _timed("initial_bp", "Initial Bandpass", run_initial_bp, ctx)
-        ctx = _timed("initial_rflag", "Initial RFlag", run_initial_rflag, ctx)
-        ctx = _timed(
-            "semi_final_bp_1", "Semi-final BP (pass 1)", run_semi_final_bp, ctx
-        )  # noqa: E501
-        ctx = _timed("checkflag", "Checkflag", run_checkflag, ctx)
-        ctx = _timed(
-            "semi_final_bp_2", "Semi-final BP (pass 2)", run_semi_final_bp, ctx
-        )  # noqa: E501
-        ctx = _timed("solint", "Solution Interval", run_solint, ctx)
-        ctx = _timed("test_gains", "Test Gains", run_test_gains, ctx)
-        ctx = _timed("flux_gains", "Flux Gains", run_flux_gains, ctx)
-        ctx = _timed("fluxboot", "Flux Bootstrap", run_fluxboot, ctx)
-        ctx = _timed("final_cals", "Final Calibrations", run_final_cals, ctx)
-        ctx = _timed("polcal", "Polarization Cal", run_polcal, ctx)
-        ctx = _timed("apply_cals", "Apply Calibrations", run_apply_cals, ctx)
-        ctx = _timed("final_flags", "Final Flags", run_final_flags, ctx)
-    finally:
-        # run_weblog always executes — even on failure, a partial weblog is useful
-        ctx = run_weblog(ctx)
+    ctx = _run_stages(ctx, skip_set, skip_hanning, verbose)
 
     if verbose:
         print(f":: Pipeline complete — weblog: {ctx.get('weblog_path', 'not written')}")

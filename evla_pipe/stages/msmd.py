@@ -290,9 +290,7 @@ def run_msmd(ctx: PipelineContext) -> PipelineContext:
         # --- Start date (MJD days) ---------------------------------------
         # msmd.summary() returns BeginTime in MJD seconds; convert to days.
         summary = msmd.summary()
-        startdate_s = float(
-            summary.get("begin time", summary.get("BeginTime", 0.0))
-        )
+        startdate_s = float(summary.get("begin time", summary.get("BeginTime", 0.0)))
         ctx["startdate"] = startdate_s / 86400.0
         task_log(f"Observation start: {ctx['startdate']:.4f} MJD")
 
@@ -467,9 +465,7 @@ def run_msmd(ctx: PipelineContext) -> PipelineContext:
         msmd.close()
 
     # --- weather seasonal weight (used by priorcals for plotweather) ---
-    ctx["weather_seasonal_weight"] = _weather_seasonal_weight(
-        ctx.get("startdate", 0.0)
-    )
+    ctx["weather_seasonal_weight"] = _weather_seasonal_weight(ctx.get("startdate", 0.0))
 
     # --- listobs -------------------------------------------------------
     logs_dir = Path(ctx["workdir"]) / "logs"

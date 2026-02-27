@@ -49,8 +49,11 @@ evla-pipeline your_data.asdm --polarization
 # Apply Hanning smoothing after import
 evla-pipeline your_data.asdm --hanning
 
-# Resume from a named stage
-evla-pipeline your_data.asdm --resume-from run_fluxboot
+# Auto-resume from the last successful stage checkpoint
+evla-pipeline your_data.asdm --resume
+
+# Resume from a specific stage (all prior stages are skipped)
+evla-pipeline your_data.asdm --resume-from fluxboot
 
 # Skip a stage
 evla-pipeline your_data.asdm --skip run_final_flags
@@ -64,6 +67,36 @@ python -m evla_pipe your_data.asdm --polarization
 
 ---
 
+## Resume and checkpointing
+
+A checkpoint is written atomically to `pipeline_context/checkpoint.json` after
+each stage completes. If a run is interrupted (crash, Ctrl-C, wall-time limit),
+you can resume without repeating completed work:
+
+```bash
+# Auto-resume — skips all stages already in the checkpoint
+evla-pipeline your_data.asdm --resume
+
+# Resume from a specific stage — skips everything before it
+evla-pipeline your_data.asdm --resume-from fluxboot
+evla-pipeline your_data.asdm --resume-from run_fluxboot   # both forms accepted
+```
+
+**Notes:**
+
+- `--resume` reads the checkpoint from the same workdir the pipeline would use
+  (default `<sdm_stem>_pipeline/`, or `--workdir` if specified).
+- `run_msmd` always re-runs on resume — MS metadata contains numpy arrays that
+  are not persisted in the checkpoint and must be re-derived.
+- `run_startup` always re-runs — it is a no-op when directories already exist.
+- `run_import` has its own disk guard and is a no-op if the MS already exists.
+- Hanning smoothing writes a `<sdm>.hanning_done` marker after the first
+  successful smooth; subsequent runs skip it automatically.
+- The checkpoint validates that the SDM name and `--polarization` flag match
+  the original run. Mismatches raise an error before any stages execute.
+
+---
+
 ## Output layout
 
 All pipeline outputs are written to the workdir (default `<sdm_stem>_pipeline/`):
@@ -74,6 +107,7 @@ TDRW0001_pipeline/
 ├── plots/
 ├── weblog/
 ├── pipeline_context/
+│   └── checkpoint.json       (written after each stage; enables --resume)
 ├── final_caltables/
 │   ├── gain_curves.g
 │   ├── opacities.g
@@ -126,12 +160,20 @@ and is not moved.
 ```python
 from evla_pipe.pipeline import continuum
 
+# Fresh run
 ctx = continuum(
     sdm_name="your_data.asdm",
     enable_polarization=True,
     workdir="/data/run1",
 )
 print(ctx["target_ms"])   # path to the calibrated target MS
+
+# Resume from last checkpoint
+ctx = continuum(
+    sdm_name="your_data.asdm",
+    workdir="/data/run1",
+    resume=True,
+)
 ```
 
 ---

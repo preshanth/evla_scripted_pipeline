@@ -71,6 +71,11 @@ def run_hanning(ctx: PipelineContext) -> PipelineContext:
         return ctx
 
     msname = ctx["msname"]
+    marker = Path(msname).parent / (Path(msname).stem + ".hanning_done")
+    if marker.exists():
+        log.info("Hanning already applied (marker found), skipping: %s", msname)
+        return ctx
+
     tmp_ms = msname + ".hanning"
     log.info("Applying Hanning smoothing: %s -> %s", msname, tmp_ms)
 
@@ -83,5 +88,6 @@ def run_hanning(ctx: PipelineContext) -> PipelineContext:
 
     shutil.rmtree(msname)
     shutil.move(tmp_ms, msname)
+    marker.touch()
     log.info("Hanning smoothing complete: %s", msname)
     return ctx

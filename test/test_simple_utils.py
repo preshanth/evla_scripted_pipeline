@@ -49,3 +49,27 @@ def test_find_evla_band():
     assert su.find_EVLA_band(3.0e9) == "S"
     with pytest.raises(ValueError):
         su.find_EVLA_band(1e12)
+
+
+def test_checkpoint_roundtrip(tmp_path):
+    from evla_pipe.context import (
+        QAResult,
+        load_checkpoint,
+        make_default_context,
+        save_checkpoint,
+    )
+
+    ctx = make_default_context("test.asdm")
+    ctx["workdir"] = str(tmp_path)
+    ctx["gain_solint1"] = "5.00s"
+    ctx["QA2_priorcals"] = QAResult(overall="Pass", message="ok")
+
+    save_checkpoint(ctx, "priorcals")
+    loaded_ctx, completed, fingerprint = load_checkpoint(str(tmp_path))
+
+    assert completed == ["priorcals"]
+    assert loaded_ctx["gain_solint1"] == "5.00s"
+    assert isinstance(loaded_ctx["QA2_priorcals"], QAResult)
+    assert loaded_ctx["QA2_priorcals"].overall == "Pass"
+    assert loaded_ctx["QA2_priorcals"].message == "ok"
+    assert fingerprint["SDM_name"] == "test.asdm"
