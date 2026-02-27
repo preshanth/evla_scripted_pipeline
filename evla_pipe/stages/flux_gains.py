@@ -22,6 +22,7 @@ from casatasks import gaincal, rmtables, setjy
 
 from evla_pipe.context import PipelineContext
 from evla_pipe.pol_setjy_utils import integrate_polarization_setjy
+from evla_pipe.simple_utils import field_label
 from evla_pipe.utils import _extract_position_tuples, find_EVLA_band, find_standards
 
 log = logging.getLogger(__name__)
@@ -126,7 +127,13 @@ def run_flux_gains(ctx: PipelineContext) -> PipelineContext:
     rmtables(t_flux)
 
     gt = priorcals + [t_delay, t_bp]
-    log.info("Solving fluxgaincal.g (solint=%s, calmode='ap')", gain_solint2)
+    log.info(
+        "gaincal (ap, solint=%s): field=%s, spw=%s → %s",
+        gain_solint2,
+        field_label(ctx, cal_fields),
+        all_spw,
+        t_flux,
+    )
     gaincal(
         vis=cal_ms,
         caltable=t_flux,

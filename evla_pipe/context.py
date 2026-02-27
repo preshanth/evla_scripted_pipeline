@@ -132,7 +132,12 @@ class PipelineContext(TypedDict, total=False):
     tst_delay_spw: str  # CASA spw:chan selection, mid-channels per spw,
     # avoiding baseband edge roll-offs.
     # e.g. "0:32~96,1:32~96,..." for 128-chan spws.
-    intents: dict[int, list[str]]  # scan_id -> list of intent strings
+    # Raw intent strings exactly as recorded in the MS, keyed by the full
+    # intent string (e.g. "CALIBRATE_BANDPASS#UNSPECIFIED") so downstream
+    # stages can pass them directly to CASA task intent= parameters or
+    # build wildcard selections (e.g. "CALIBRATE_BANDPASS*").
+    # Value keys: "fields" (list[int]), "scans" (list[int]), "spws" (list[int]).
+    intents: dict[str, dict]  # intent_string -> {fields, scans, spws}
     field_spws: list[list[int]]  # field_id -> list of spw IDs
     field_scan_map: dict[int, list[int]]  # field_id -> list of scan IDs
 
@@ -293,6 +298,15 @@ class PipelineContext(TypedDict, total=False):
     # Each entry: {"name": str, "label": str, "duration_s": float}
     stage_records: list
     weblog_path: str  # absolute path to workdir/weblog/index.html after run_weblog
+
+    # --- cal_diagnostics ---------------------------------------------------
+    # Maximum baseline length in metres; computed by run_msmd from
+    # msmd.baselinelengths() and used to derive per-SPW cell sizes.
+    max_baseline_m: float
+    # Per-field/per-SPW imaging results from run_cal_diagnostics.
+    # Each entry: {field_id, field_name, spw, freq_ghz, stokes,
+    #              peak_jy, rms_jy, expected_jy, ratio, png}
+    cal_image_results: list
 
     # --- checkpoint (internal) ---------------------------------------------
     _completed_stages: list  # list of stage name strings; written by save_checkpoint

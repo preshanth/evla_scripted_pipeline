@@ -102,6 +102,7 @@ _PLOT_PREFIX_MAP: dict[str, str | None] = {
     "polcal": "polcal",
     "apply_cals": None,
     "final_flags": None,
+    "cal_diagnostics": "caldiag",
 }
 
 # ---------------------------------------------------------------------------
@@ -278,6 +279,12 @@ pre {
 .verdict-box.fail    { background: #f8d7da; color: #721c24; }
 .verdict-box.skip    { background: #e2e3e5; color: #383d41; }
 @media print { #sidebar { display: none; } main { margin-left: 0; } }
+.diag-table { border-collapse: collapse; width: 100%; font-size: 0.82rem; margin-top: 0.5rem; }
+.diag-table th { background: #f1f3f5; padding: 0.3rem 0.5rem; text-align: left; font-weight: 600; }
+.diag-table td { padding: 0.25rem 0.5rem; border-bottom: 1px solid #f1f3f5; }
+.ratio-ok   { color: #155724; font-weight: 600; }
+.ratio-warn { color: #856404; font-weight: 600; }
+.ratio-bad  { color: #721c24; font-weight: 600; }
 """
 
 # ---------------------------------------------------------------------------
@@ -374,6 +381,54 @@ def _render_summary(ctx: PipelineContext, stage_records: list[dict]) -> str:
 </section>"""
 
 
+def _render_cal_diagnostics_table(ctx: PipelineContext) -> str:
+    """Render a peak/RMS/expected flux table for cal_image_results."""
+    results: list[dict] = ctx.get("cal_image_results", [])  # type: ignore[assignment]
+    if not results:
+        return ""
+
+    rows = ""
+    for r in results:
+        ratio = r.get("ratio")
+        expected = r.get("expected_jy")
+        peak = r.get("peak_jy", 0.0)
+        rms_mjy = (r.get("rms_jy") or 0.0) * 1e3
+
+        if ratio is None:
+            ratio_str = '<span class="ratio-warn">N/A</span>'
+        elif 0.8 <= ratio <= 1.2:
+            ratio_str = f'<span class="ratio-ok">{ratio:.3f}</span>'
+        elif 0.6 <= ratio <= 1.4:
+            ratio_str = f'<span class="ratio-warn">{ratio:.3f}</span>'
+        else:
+            ratio_str = f'<span class="ratio-bad">{ratio:.3f}</span>'
+
+        rows += (
+            f"<tr>"
+            f"<td>{r['field_name']}</td>"
+            f"<td>{r['spw']}</td>"
+            f"<td>{r['freq_ghz']:.3f}</td>"
+            f"<td>{r['stokes']}</td>"
+            f"<td>{peak:.4f}</td>"
+            f"<td>{rms_mjy:.2f}</td>"
+            f"<td>{'—' if expected is None else f'{expected:.4f}'}</td>"
+            f"<td>{ratio_str}</td>"
+            f"</tr>\n"
+        )
+
+    return (
+        "<h3>Flux Diagnostics</h3>"
+        '<table class="diag-table">'
+        "<thead><tr>"
+        "<th>Field</th><th>SPW</th><th>Freq (GHz)</th><th>Stokes</th>"
+        "<th>Peak (Jy)</th><th>RMS (mJy/bm)</th>"
+        "<th>Expected (Jy)</th><th>Peak/Expected</th>"
+        "</tr></thead>"
+        f"<tbody>{rows}</tbody>"
+        "</table>"
+    )
+
+
 def _render_stage_panel(
     rec: dict,
     ctx: PipelineContext,
@@ -389,6 +444,7 @@ def _render_stage_panel(
     tables = _stage_tables(name, ctx)
     plots = _stage_plots(name, plots_dir)
     log_lines = _log_excerpt(name, workdir)
+    diag_table = _render_cal_diagnostics_table(ctx) if name == "cal_diagnostics" else ""
 
     # Tables section
     tables_html = ""
@@ -430,6 +486,7 @@ def _render_stage_panel(
   </div>
   {qa_message}
   {tables_html}
+  {diag_table}
   {plots_html}
   {log_html}
 </section>"""

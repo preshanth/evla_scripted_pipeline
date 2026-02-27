@@ -85,6 +85,8 @@ evla_pipeline = { path = ".", editable = true }
 [tool.pixi.dependencies]
 pytest = ">=8.0"
 ruff = ">=0.4"
+astropy = ">=5.0"
+matplotlib = ">=3.7"
 
 [tool.pixi.environments]
 default = { solve-group = "default" }

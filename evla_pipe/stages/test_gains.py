@@ -51,7 +51,13 @@ def run_test_gains(ctx: PipelineContext) -> PipelineContext:
     rmtables(t_test)
 
     gt = priorcals + [t_delay, t_bp]
-    log.info("Test gaincal: solint=%s on phase scans", gain_solint2)
+    log.info(
+        "gaincal (ap, solint=%s): scan=%s, spw=%s → %s",
+        gain_solint2,
+        phase_scan,
+        all_spw,
+        t_test,
+    )
     gaincal(
         vis=cal_ms,
         caltable=t_test,

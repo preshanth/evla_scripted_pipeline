@@ -23,6 +23,7 @@ from pathlib import Path
 from casatasks import applycal, bandpass, gaincal
 
 from evla_pipe.context import PipelineContext
+from evla_pipe.simple_utils import field_label
 from evla_pipe.utils import RefAntHeuristics
 
 log = logging.getLogger(__name__)
@@ -76,7 +77,13 @@ def run_initial_bp(ctx: PipelineContext) -> PipelineContext:
     #    These correct antenna-based phase offsets so BP amplitudes
     #    are not smeared by phase scatter across integrations.
     # ------------------------------------------------------------------
-    log.info("Solving short phase gains before initial bandpass")
+    log.info(
+        "gaincal (phase, solint=int): field=%s, scan=%s, spw=%s → %s",
+        field_label(ctx, bp_field),
+        bp_scan,
+        all_spw,
+        init_gain_table,
+    )
     gaincal(
         vis=cal_ms,
         caltable=init_gain_table,
@@ -104,7 +111,13 @@ def run_initial_bp(ctx: PipelineContext) -> PipelineContext:
     # ------------------------------------------------------------------
     # 2. Bandpass with infinite solution interval (all data combined)
     # ------------------------------------------------------------------
-    log.info("Solving initial bandpass (solint='inf')")
+    log.info(
+        "bandpass (solint=inf, combine=scan): field=%s, scan=%s, spw=%s → %s",
+        field_label(ctx, bp_field),
+        bp_scan,
+        all_spw,
+        bp_table,
+    )
     bp_gaintable = priorcals + [init_gain_table]
     bp_gainfield = [""] * len(bp_gaintable)
     bp_interp = [""] * len(bp_gaintable)
@@ -137,7 +150,11 @@ def run_initial_bp(ctx: PipelineContext) -> PipelineContext:
     # ------------------------------------------------------------------
     # 3. Apply to calibrators.ms so residuals are available for rflag
     # ------------------------------------------------------------------
-    log.info("Applying initial bandpass to calibrators.ms")
+    log.info(
+        "applycal (%d tables): all fields in %s",
+        len(priorcals) + 2,
+        cal_ms,
+    )
     ac_gaintable = priorcals + [init_gain_table, bp_table]
     applycal(
         vis=cal_ms,

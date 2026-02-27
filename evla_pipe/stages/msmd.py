@@ -22,6 +22,7 @@ from casatasks import listobs
 from casatools import msmetadata
 
 from evla_pipe.context import PipelineContext, compute_critfrac, compute_minBL
+from evla_pipe.simple_utils import field_label
 from evla_pipe.utils import find_EVLA_band, logprint, uniq
 
 log = logging.getLogger(__name__)
@@ -249,6 +250,90 @@ def _weather_seasonal_weight(startdate: float) -> float:
 # ---------------------------------------------------------------------------
 
 
+def _log_context_summary(ctx: PipelineContext) -> None:
+    """Log a structured summary of pipeline metadata after run_msmd completes."""
+    field_names = ctx.get("field_names", [])
+
+    # Build role map: field_id → list of roles
+    role_map: dict[int, list[str]] = {fid: [] for fid in range(len(field_names))}
+    for ctx_key, role in [
+        ("flux_field_list", "flux"),
+        ("bandpass_field_list", "bandpass"),
+        ("delay_field_list", "delay"),
+        ("phase_field_list", "phase"),
+        ("amp_field_list", "amp"),
+        ("pol_angle_field_list", "pol_angle"),
+        ("pol_lkg_field_list", "pol_leakage"),
+    ]:
+        for fid in ctx.get(ctx_key, []):
+            if fid < len(field_names):
+                role_map[fid].append(role)
+
+    cal_fids = {fid for fid, roles in role_map.items() if roles}
+    for fid in range(len(field_names)):
+        if fid not in cal_fids:
+            role_map[fid].append("target")
+
+    sep = "=" * 62
+    lines = [
+        sep,
+        "  Pipeline metadata summary",
+        sep,
+        f"  MS         : {ctx.get('msname', '?')}",
+        f"  Antennas   : {ctx.get('numAntenna', '?')}",
+        f"  SPWs       : {ctx.get('numSpws', '?')}  ({ctx.get('all_spw', '')})",
+        f"  Corr       : {ctx.get('corrstring', '?')}",
+        f"  Int time   : {ctx.get('int_time', 0):.2f}s",
+        "",
+        "  Fields",
+        "  " + "-" * 58,
+    ]
+    for fid, name in enumerate(field_names):
+        roles = ", ".join(role_map.get(fid, ["target"]))
+        lines.append(f"  {fid:3d}  {name:<24s}  {roles}")
+
+    lines += ["", "  Intents (from MS)", "  " + "-" * 58]
+    for intent_str, info in ctx.get("intents", {}).items():
+        fids = info.get("fields", [])
+        scans = info.get("scans", [])
+        lines.append(f"  {intent_str:<48s}  fields={fids}  scans={scans}")
+
+    lines += ["", "  Polarization calibrators", "  " + "-" * 58]
+    pol_angle = ctx.get("pol_angle_field_list", [])
+    pol_lkg = ctx.get("pol_lkg_field_list", [])
+    pol_angle_by_name = ctx.get("pol_angle_field_list_by_name", [])
+    pol_lkg_by_name = ctx.get("pol_lkg_field_list_by_name", [])
+
+    if pol_angle:
+        for fid in pol_angle:
+            via = "name" if fid in pol_angle_by_name else "intent"
+            name = field_names[fid] if fid < len(field_names) else "?"
+            lines.append(f"  Angle  : {field_label(ctx, str(fid))}  [via {via}]")
+    else:
+        lines.append("  Angle  : none detected")
+    if pol_lkg:
+        for fid in pol_lkg:
+            via = "name" if fid in pol_lkg_by_name else "intent"
+            name = field_names[fid] if fid < len(field_names) else "?"
+            lines.append(f"  Leakage: {field_label(ctx, str(fid))}  [via {via}]")
+    else:
+        lines.append("  Leakage: none detected")
+
+    lines += [
+        "",
+        "  Key parameters",
+        "  " + "-" * 58,
+        f"  minBL_for_cal = {ctx.get('minBL_for_cal', '?')}",
+        f"  critfrac(bb)  = {ctx.get('critfrac', 0):.4f}",
+        f"  critfrac(spw) = {ctx.get('critfrac_per_spw', 0):.4f}",
+        sep,
+    ]
+
+    for line in lines:
+        log.info(line)
+        task_log(line)
+
+
 def run_msmd(ctx: PipelineContext) -> PipelineContext:
     """
     Populate the entire PipelineContext backbone from the Measurement Set.
@@ -278,13 +363,38 @@ def run_msmd(ctx: PipelineContext) -> PipelineContext:
         field_names = list(msmd.fieldnames())
         all_intents = list(msmd.intents())
 
+        # Store raw intent strings as the MS records them (e.g.
+        # "CALIBRATE_BANDPASS#UNSPECIFIED") with their associated fields,
+        # scans, and spws.  Downstream stages can pass these strings directly
+        # to CASA task intent= parameters or build wildcard selections from them.
+        # Times are omitted — they are numpy arrays and rarely needed for msselect.
+        intents_ctx: dict[str, dict] = {}
+        for intent_str in all_intents:
+            try:
+                intents_ctx[intent_str] = {
+                    "fields": list(msmd.fieldsforintent(intent_str)),
+                    "scans": list(msmd.scansforintent(intent_str)),
+                    "spws": list(msmd.spwsforintent(intent_str)),
+                }
+            except Exception as e:
+                task_log(
+                    f"Warning: could not extract info for intent '{intent_str}': {e}"
+                )
+        ctx["intents"] = intents_ctx
+        task_log(f"Intents recorded: {list(intents_ctx.keys())}")
+
         ctx["numSpws"] = n_spw
         ctx["numFields"] = n_fields
         ctx["numAntenna"] = n_ant
 
+        # Maximum baseline length — used by cal_diagnostics for cell size.
+        baseline_lengths = msmd.baselinelengths()
+        ctx["max_baseline_m"] = float(np.max(baseline_lengths))
+
         task_log(
             f"MS: {n_spw} spws, {n_fields} fields, {n_ant} antennas, "
-            f"{len(scan_numbers)} scans"
+            f"{len(scan_numbers)} scans, "
+            f"max_baseline={ctx['max_baseline_m']:.0f}m"
         )
 
         # --- Start date (MJD days) ---------------------------------------
@@ -476,5 +586,6 @@ def run_msmd(ctx: PipelineContext) -> PipelineContext:
     except Exception as e:
         task_log(f"Warning: listobs failed: {e}")
 
+    _log_context_summary(ctx)
     task_log("*** run_msmd complete ***")
     return ctx

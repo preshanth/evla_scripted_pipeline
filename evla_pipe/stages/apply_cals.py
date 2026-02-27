@@ -17,6 +17,7 @@ from pathlib import Path
 from casatasks import applycal, flagdata, split, statwt
 
 from evla_pipe.context import PipelineContext
+from evla_pipe.simple_utils import field_label
 
 log = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ def run_apply_cals(ctx: PipelineContext) -> PipelineContext:
             gaintable.extend(pol_tables)
 
     n = len(gaintable)
-    log.info("Applying %d calibration tables to %s", n, ms)
+    log.info("applycal (%d tables): all fields in %s", n, ms)
     log.info("  gaintable: %s", gaintable)
 
     # ------------------------------------------------------------------
@@ -84,7 +85,7 @@ def run_apply_cals(ctx: PipelineContext) -> PipelineContext:
     # ------------------------------------------------------------------
     target_fields = ctx.get("target_field_select_string", "")
     if target_fields:
-        log.info("Running statwt on target fields: %s", target_fields)
+        log.info("statwt: field=%s in %s", field_label(ctx, target_fields), ms)
         statwt(
             vis=ms,
             field=target_fields,
@@ -98,7 +99,7 @@ def run_apply_cals(ctx: PipelineContext) -> PipelineContext:
     # ------------------------------------------------------------------
     target_ms = str(Path(ctx["workdir"]) / "target.ms")
     if target_fields:
-        log.info("Splitting target fields to %s", target_ms)
+        log.info("split: field=%s → %s", field_label(ctx, target_fields), target_ms)
         split(
             vis=ms,
             outputvis=target_ms,

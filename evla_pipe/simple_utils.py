@@ -72,6 +72,30 @@ def uniq(inlist: List) -> List:
     return np.unique(inlist).tolist()
 
 
+def field_label(ctx: dict, field_str: str) -> str:
+    """Convert a CASA field select string to a human-readable label.
+
+    Examples
+    --------
+    "0"   → "0 (3C286)"
+    "0,2" → "0 (3C286), 2 (J0259+0747)"
+    ""    → ""
+    """
+    field_names = ctx.get("field_names", [])
+    if not field_names or not field_str:
+        return str(field_str)
+    parts = []
+    for part in str(field_str).split(","):
+        part = part.strip()
+        try:
+            fid = int(part)
+            name = field_names[fid] if fid < len(field_names) else "?"
+            parts.append(f"{fid} ({name})")
+        except ValueError:
+            parts.append(part)
+    return ", ".join(parts)
+
+
 def find_EVLA_band(frequency: float) -> str:
     band_freqs = {
         "4": (0.00, 0.15),

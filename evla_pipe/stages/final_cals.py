@@ -30,6 +30,7 @@ from pathlib import Path
 from casatasks import bandpass, gaincal, rmtables
 
 from evla_pipe.context import PipelineContext
+from evla_pipe.simple_utils import field_label
 from evla_pipe.utils import getCalFlaggedSoln
 
 log = logging.getLogger(__name__)
@@ -88,7 +89,12 @@ def run_final_cals(ctx: PipelineContext) -> PipelineContext:
     # ------------------------------------------------------------------
     # 1. Final delay phase init gain
     # ------------------------------------------------------------------
-    log.info("Final cals step 1: short phase gain on delay calibrator")
+    log.info(
+        "Step 1 — gaincal (phase, solint=int): delay field=%s, spw=%s → %s",
+        field_label(ctx, delay_field),
+        tst_delay_spw,
+        t_init,
+    )
     rmtables(t_init)
     gaincal(
         vis=cal_ms,
@@ -113,7 +119,12 @@ def run_final_cals(ctx: PipelineContext) -> PipelineContext:
     # ------------------------------------------------------------------
     # 2. Final delay (K)
     # ------------------------------------------------------------------
-    log.info("Final cals step 2: delay calibration")
+    log.info(
+        "Step 2 — gaincal (K, solint=inf): delay field=%s, spw=%s → %s",
+        field_label(ctx, delay_field),
+        tst_delay_spw,
+        t_delay,
+    )
     rmtables(t_delay)
     gt = priorcals + [t_init]
     gaincal(
@@ -139,7 +150,14 @@ def run_final_cals(ctx: PipelineContext) -> PipelineContext:
     # ------------------------------------------------------------------
     # 3. Final BP init gain
     # ------------------------------------------------------------------
-    log.info("Final cals step 3: BP phase init gain (solint=%s)", gain_solint1)
+    log.info(
+        "Step 3 — gaincal (phase, solint=%s): BP field=%s, scan=%s, spw=%s → %s",
+        gain_solint1,
+        field_label(ctx, bp_field),
+        bp_scan,
+        all_spw,
+        t_bp_init,
+    )
     rmtables(t_bp_init)
     gt = priorcals + [t_delay]
     gaincal(
@@ -165,7 +183,13 @@ def run_final_cals(ctx: PipelineContext) -> PipelineContext:
     # ------------------------------------------------------------------
     # 4. Final bandpass
     # ------------------------------------------------------------------
-    log.info("Final cals step 4: bandpass (solint='inf')")
+    log.info(
+        "Step 4 — bandpass (solint=inf, combine=scan): field=%s, scan=%s, spw=%s → %s",
+        field_label(ctx, bp_field),
+        bp_scan,
+        all_spw,
+        t_bp,
+    )
     rmtables(t_bp)
     gt = priorcals + [t_delay, t_bp_init]
     bandpass(
@@ -193,7 +217,14 @@ def run_final_cals(ctx: PipelineContext) -> PipelineContext:
     # ------------------------------------------------------------------
     # 5. Final phase gain (short solint, all calibrators)
     # ------------------------------------------------------------------
-    log.info("Final cals step 5: phase gain (solint=%s)", gain_solint1)
+    log.info(
+        "Step 5 — gaincal (phase, solint=%s): field=%s, scan=%s, spw=%s → %s",
+        gain_solint1,
+        field_label(ctx, cal_fields),
+        phase_scan,
+        all_spw,
+        t_phase,
+    )
     rmtables(t_phase)
     gt = priorcals + [t_delay, t_bp]
     gaincal(
@@ -219,7 +250,14 @@ def run_final_cals(ctx: PipelineContext) -> PipelineContext:
     # ------------------------------------------------------------------
     # 6. Final amp gain (long solint, all calibrators)
     # ------------------------------------------------------------------
-    log.info("Final cals step 6: amp gain (solint=%s)", gain_solint2)
+    log.info(
+        "Step 6 — gaincal (ap, solint=%s): field=%s, scan=%s, spw=%s → %s",
+        gain_solint2,
+        field_label(ctx, cal_fields),
+        phase_scan,
+        all_spw,
+        t_amp,
+    )
     rmtables(t_amp)
     gt = priorcals + [t_delay, t_bp, t_phase]
     gaincal(

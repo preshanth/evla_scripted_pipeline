@@ -38,6 +38,7 @@ from evla_pipe.context import (
     save_checkpoint,
 )
 from evla_pipe.stages.apply_cals import run_apply_cals
+from evla_pipe.stages.cal_diagnostics import run_cal_diagnostics
 from evla_pipe.stages.checkflag import run_checkflag
 from evla_pipe.stages.final_cals import run_final_cals
 from evla_pipe.stages.final_flags import run_final_flags
@@ -86,6 +87,7 @@ STAGE_SEQUENCE = [
     ("polcal", "Polarization Cal", run_polcal),
     ("apply_cals", "Apply Calibrations", run_apply_cals),
     ("final_flags", "Final Flags", run_final_flags),
+    ("cal_diagnostics", "Calibrator Diagnostics", run_cal_diagnostics),
 ]
 
 
