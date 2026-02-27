@@ -62,6 +62,14 @@ def run_hanning(ctx: PipelineContext) -> PipelineContext:
         log.info("Hanning smoothing disabled, skipping")
         return ctx
 
+    if ctx.get("do_pol", False):
+        log.warning(
+            "Hanning smoothing skipped: polarization calibration is enabled. "
+            "Hanning smoothing mixes adjacent channels and corrupts the "
+            "cross-hand phase needed for polarization calibration."
+        )
+        return ctx
+
     msname = ctx["msname"]
     tmp_ms = msname + ".hanning"
     log.info("Applying Hanning smoothing: %s -> %s", msname, tmp_ms)

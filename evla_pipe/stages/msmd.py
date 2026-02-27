@@ -18,7 +18,7 @@ import logging
 from pathlib import Path
 
 import numpy as np
-from casatasks import listobs, plotweather
+from casatasks import listobs
 from casatools import msmetadata
 
 from evla_pipe.context import PipelineContext, compute_critfrac, compute_minBL
@@ -86,13 +86,14 @@ def _fields_for_names(
     """
     found = []
     for alias in aliases:
-        try:
+        # Only call fieldsforname when the alias is an actual field name —
+        # CASA logs a SEVERE at the C++ level before throwing for unknown names,
+        # which we cannot suppress from Python even with try/except.
+        if alias in field_names:
             ids = list(msmd_tool.fieldsforname(alias))
             if ids:
                 found.extend(ids)
                 break
-        except Exception:
-            pass
 
         norm = _normalize(alias)
         for fid, fname in enumerate(field_names):
@@ -230,22 +231,17 @@ def _select_string(ids: list[int]) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _calculate_tau(msname: str, startdate: float) -> float:
+def _weather_seasonal_weight(startdate: float) -> float:
     """
-    Calculate zenith opacity via plotweather.
+    Return the plotweather seasonal_weight for this observation.
 
-    Known broken weather-station periods use 100% seasonal model.
+    Known broken VLA weather-station periods require 100% seasonal model.
+    All other observations use the default 50/50 blend.
     """
     broken = (55918.80 <= startdate <= 55938.98) or (56253.6 <= startdate <= 56271.6)
-    weight = 1.0 if broken else 0.5
     if broken:
         task_log("Weather station broken during this period, using seasonal_weight=1.0")
-    try:
-        tau = plotweather(vis=msname, seasonal_weight=weight, doPlot=True)
-        return float(tau) if tau is not None else 0.0
-    except Exception as e:
-        task_log(f"Warning: plotweather failed: {e}")
-        return 0.0
+    return 1.0 if broken else 0.5
 
 
 # ---------------------------------------------------------------------------
@@ -291,11 +287,13 @@ def run_msmd(ctx: PipelineContext) -> PipelineContext:
             f"{len(scan_numbers)} scans"
         )
 
-        # --- Start date (MJD) -------------------------------------------
+        # --- Start date (MJD days) ---------------------------------------
+        # msmd.summary() returns BeginTime in MJD seconds; convert to days.
         summary = msmd.summary()
-        ctx["startdate"] = float(
+        startdate_s = float(
             summary.get("begin time", summary.get("BeginTime", 0.0))
         )
+        ctx["startdate"] = startdate_s / 86400.0
         task_log(f"Observation start: {ctx['startdate']:.4f} MJD")
 
         # --- Spectral window info ---------------------------------------
@@ -468,13 +466,15 @@ def run_msmd(ctx: PipelineContext) -> PipelineContext:
     finally:
         msmd.close()
 
-    # --- tau (plotweather opens MS independently) ----------------------
-    ctx["tau"] = _calculate_tau(msname, ctx.get("startdate", 0.0))
-    task_log(f"Zenith opacity tau={ctx['tau']:.4f}")
+    # --- weather seasonal weight (used by priorcals for plotweather) ---
+    ctx["weather_seasonal_weight"] = _weather_seasonal_weight(
+        ctx.get("startdate", 0.0)
+    )
 
     # --- listobs -------------------------------------------------------
-    listfile = Path(msname).stem + ".listobs"
-    Path(listfile).unlink(missing_ok=True)
+    logs_dir = Path(ctx["workdir"]) / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    listfile = str(logs_dir / (Path(msname).stem + ".listobs"))
     try:
         listobs(vis=msname, listfile=listfile, overwrite=True, verbose=True)
     except Exception as e:

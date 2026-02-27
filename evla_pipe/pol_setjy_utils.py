@@ -50,9 +50,9 @@ def load_polcal_data_from_file(source_name: str, data_dir: str = None) -> PolCal
         Loaded calibrator data
     """
     if data_dir is None:
-        # Get the directory where this module is located
+        # Data files live alongside this package: evla_pipe/data/
         module_dir = Path(__file__).parent
-        data_dir = module_dir.parent / "data"
+        data_dir = module_dir / "data"
     else:
         data_dir = Path(data_dir)
 
@@ -150,9 +150,8 @@ def load_perley_butler_2013_data(source_name: str, data_dir: str = None) -> PolC
         Loaded calibrator data
     """
     if data_dir is None:
-        # Get the directory where this module is located
         module_dir = Path(__file__).parent
-        data_dir = module_dir.parent / "data"
+        data_dir = module_dir / "data"
     else:
         data_dir = Path(data_dir)
 

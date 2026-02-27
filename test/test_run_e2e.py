@@ -51,43 +51,45 @@ REF_BAND = None               # str  e.g. "L" — not yet extracted from ctx
 
 # Solution intervals determined by run_solint (strings, not floats)
 # gain_solint1 = integration time; gain_solint2 = max scan duration × 1.01
-REF_GAIN_SOLINT1 = None       # str  e.g. "2.02s" — populate after reference run
-REF_GAIN_SOLINT2 = None       # str  e.g. "123.45s" — populate after reference run
+REF_GAIN_SOLINT1 = "5.00s"
+REF_GAIN_SOLINT2 = "222.20s"
 
 # Reference antenna chosen by heuristics
 REF_REFANT = "ea28"
 
 # Flag fractions (full MS, before and after applycal)
-REF_FLAG_FRAC_BEFORE = 0.09504468669139465
-REF_FLAG_FRAC_AFTER = 0.20229557172961837
+# Note: values shifted significantly after fixing pol_setjy data file path.
+REF_FLAG_FRAC_BEFORE = 0.5602958597830513
+REF_FLAG_FRAC_AFTER = 0.5634115675309117
 
 # Flux bootstrapping: phase calibrator flux density at reference frequency
 # Recorded from reference run on TDRW0001.
+# Note: J2355+4950 flux changed substantially after fixing pol_setjy data path.
 REF_FLUX_FITTING = [
     {
         "source": "J0259+0747",
         "spws": [2, 3, 4, 5, 6, 7, 8, 9],
-        "flux_jy": 0.9295731726914271,
-        "spix": 0.13053928442938615,
-        "snr": 11.506182370413266,
-        "reffreq_ghz": 2.5510000000000002,
+        "flux_jy": 0.9491082639064109,
+        "spix": 0.18623789590129883,
+        "snr": 18.54111013727355,
+        "reffreq_ghz": 2.551000000000003,
     },
     {
         "source": "J2355+4950",
         "spws": [2, 3, 4, 5, 6, 7, 8, 9],
-        "flux_jy": 0.3882893982028951,
-        "spix": -0.5522832748055851,
-        "snr": 6.594785614006618,
-        "reffreq_ghz": 2.5510000000000002,
+        "flux_jy": 1.9504253939033651,
+        "spix": -0.5726822758986283,
+        "snr": 195.9737784929419,
+        "reffreq_ghz": 2.551000000000003,
     },
 ]
 
 # Final amplitude gain table statistics (median, std of |CPARAM|)
-REF_FINAL_AMP_MEDIAN = 1.010039391
-REF_FINAL_AMP_STD = 0.016190088
+REF_FINAL_AMP_MEDIAN = 1.004256331
+REF_FINAL_AMP_STD = 0.014657801
 
 # Final BP table: fraction of flagged solutions across all antennas/spws
-REF_FINAL_BP_FLAG_FRAC = 0.343026620
+REF_FINAL_BP_FLAG_FRAC = 0.599103009
 
 # QA2 stage verdicts — not yet implemented in stages; leave None until populated
 REF_QA2 = None                # dict[str, str]  e.g. {"priorcals": "Pass", ...}

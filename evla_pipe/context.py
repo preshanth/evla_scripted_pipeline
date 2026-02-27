@@ -115,7 +115,8 @@ class PipelineContext(TypedDict, total=False):
     numAntenna: int
     startdate: float  # MJD of first integration
     int_time: float  # maximum integration time in seconds
-    tau: float  # zenith opacity from plotweather
+    weather_seasonal_weight: float  # 0.5 normally; 1.0 during broken weather periods
+    tau: list  # zenith opacity per SPW from plotweather (list[float])
     corrstring: str  # "RR,LL" or "XX,YY" from receptor type
 
     # --- msmd: field and spw metadata --------------------------------------

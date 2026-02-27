@@ -93,6 +93,9 @@ casa-*.log
 *.fluxdensities
 test_run.log
 
+# Test pipeline outputs (large CASA binary outputs, not for version control)
+test/pipeline_output/sdm_pipeline/
+
 # Test SDM / MS data (too large for version control)
 data/TDRW*/
 data/*.ms/

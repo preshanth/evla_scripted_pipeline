@@ -17,7 +17,7 @@ prepend this list to their own gaintable arguments.
 import logging
 from pathlib import Path
 
-from casatasks import gencal
+from casatasks import gencal, plotweather
 
 from evla_pipe.context import PipelineContext
 from evla_pipe.utils import correct_ant_posns
@@ -34,7 +34,7 @@ def run_priorcals(ctx: PipelineContext) -> PipelineContext:
 
     Reads from context
     -----------------
-    msname, all_spw, tau, startdate, numSpws
+    msname, all_spw, startdate, numSpws, weather_seasonal_weight
 
     Writes to context
     -----------------
@@ -43,15 +43,19 @@ def run_priorcals(ctx: PipelineContext) -> PipelineContext:
     table_opacities     : str
     table_requantizer   : str | None — None when startdate < 2011-02-24
     table_antpos        : str | None — None when no corrections are available
+    tau                 : list[float] — zenith opacity per SPW from plotweather
     """
     ms = ctx["msname"]
     all_spw = ctx["all_spw"]
-    tau = ctx["tau"]
     startdate = ctx["startdate"]
     num_spws = ctx["numSpws"]
+    seasonal_weight = ctx.get("weather_seasonal_weight", 0.5)
 
-    outdir = Path(ctx["workdir"]) / "final_caltables"
+    workdir = Path(ctx["workdir"])
+    outdir = workdir / "final_caltables"
     outdir.mkdir(parents=True, exist_ok=True)
+    plots_dir = workdir / "plots"
+    plots_dir.mkdir(parents=True, exist_ok=True)
 
     priorcals: list[str] = []
 
@@ -67,11 +71,30 @@ def run_priorcals(ctx: PipelineContext) -> PipelineContext:
     priorcals.append(gc_table)
 
     # ------------------------------------------------------------------
-    # 2. Atmospheric opacities  (tau per spw, all the same value here)
+    # 2. Atmospheric opacities  (tau per spw from plotweather)
     # ------------------------------------------------------------------
+    weather_plot = str(plots_dir / "priorcals_weather.png")
+    tau_per_spw: list[float] = []
+    try:
+        result = plotweather(
+            vis=ms,
+            seasonal_weight=seasonal_weight,
+            doPlot=True,
+            plotName=weather_plot,
+        )
+        tau_per_spw = [float(t) for t in result] if result else []
+        log.info(
+            "plotweather: tau per SPW = [%s]",
+            ", ".join(f"{t:.4f}" for t in tau_per_spw),
+        )
+    except Exception as exc:
+        log.warning("plotweather failed: %s — using zero opacity", exc)
+    if not tau_per_spw:
+        tau_per_spw = [0.0] * num_spws
+    ctx["tau"] = tau_per_spw
+
     opac_table = str(outdir / "opacities.g")
-    tau_per_spw = [float(tau)] * num_spws
-    log.info("Generating opacity table (tau=%.4f) → %s", tau, opac_table)
+    log.info("Generating opacity table (per-spw tau) → %s", opac_table)
     gencal(
         vis=ms,
         caltable=opac_table,

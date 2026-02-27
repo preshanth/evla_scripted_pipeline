@@ -87,7 +87,7 @@ _PLOT_PREFIX_MAP: dict[str, str | None] = {
     "hanning": None,
     "msmd": None,
     "preflag": None,
-    "priorcals": None,
+    "priorcals": "priorcals",
     "setjy": None,
     "initial_bp": "initial_bp",
     "initial_rflag": None,
