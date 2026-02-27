@@ -15,6 +15,11 @@ import logging
 from casatasks import flagdata
 
 from evla_pipe.context import PipelineContext
+from evla_pipe.stages._flag_utils import (
+    _append_snapshot,
+    _flag_snapshot,
+    _log_flag_snapshot,
+)
 
 log = logging.getLogger(__name__)
 
@@ -46,21 +51,9 @@ def run_final_flags(ctx: PipelineContext) -> PipelineContext:
 
     # Final flag fraction summary
     try:
-        stats = flagdata(
-            vis=target_ms,
-            mode="summary",
-            action="calculate",
-            savepars=False,
-        )
-        total = stats.get("total", 0)
-        flagged = stats.get("flagged", 0)
-        if total > 0:
-            log.info(
-                "Final flag fraction: %.2f%% (%d / %d)",
-                100.0 * flagged / total,
-                flagged,
-                total,
-            )
+        snap = _flag_snapshot(target_ms, "final_flags", "Final flags (target.ms)")
+        _log_flag_snapshot(snap, log)
+        _append_snapshot(ctx, snap)
     except Exception:
         log.exception("Flag summary on target.ms failed")
 

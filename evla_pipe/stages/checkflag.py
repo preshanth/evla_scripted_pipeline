@@ -23,6 +23,11 @@ import logging
 from casatasks import flagdata
 
 from evla_pipe.context import PipelineContext
+from evla_pipe.stages._flag_utils import (
+    _append_snapshot,
+    _flag_snapshot,
+    _log_flag_snapshot,
+)
 
 log = logging.getLogger(__name__)
 
@@ -59,10 +64,8 @@ def run_checkflag(ctx: PipelineContext) -> PipelineContext:
         savepars=True,
     )
 
-    summary = flagdata(vis=cal_ms, mode="summary", action="calculate", savepars=False)
-    total = int(summary.get("total", 0))
-    flagged = int(summary.get("flagged", 0))
-    frac = flagged / total if total else 0.0
-    log.info("After checkflag: %.1f%% of calibrators.ms data flagged", frac * 100)
+    snap = _flag_snapshot(cal_ms, "checkflag", "Checkflag (calibrators.ms)")
+    _log_flag_snapshot(snap, log)
+    _append_snapshot(ctx, snap)
 
     return ctx

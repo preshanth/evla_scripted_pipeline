@@ -22,22 +22,16 @@ import logging
 from casatasks import applycal, bandpass, flagdata
 
 from evla_pipe.context import PipelineContext
+from evla_pipe.stages._flag_utils import (
+    _append_snapshot,
+    _flag_snapshot,
+    _log_flag_snapshot,
+)
 
 log = logging.getLogger(__name__)
 
 # Fraction of data flagged per SPW above which we re-solve the BP
 BP_REFLAG_THRESHOLD = 0.20
-
-
-def _flag_fraction_per_spw(summary: dict) -> dict[int, float]:
-    """Extract per-spw flag fractions from a flagdata summary dict."""
-    spw_fracs: dict[int, float] = {}
-    for spw_str, stats in summary.get("spw", {}).items():
-        total = int(stats.get("total", 0))
-        flagged = int(stats.get("flagged", 0))
-        if total > 0:
-            spw_fracs[int(spw_str)] = flagged / total
-    return spw_fracs
 
 
 def run_initial_rflag(ctx: PipelineContext) -> PipelineContext:
@@ -106,22 +100,15 @@ def run_initial_rflag(ctx: PipelineContext) -> PipelineContext:
     # Sanity check: per-spw flag fractions
     # ------------------------------------------------------------------
     log.info("Computing per-spw flag fractions after rflag+tfcrop")
-    summary = flagdata(
-        vis=cal_ms,
-        mode="summary",
-        spwchan=True,
-        action="calculate",
-        savepars=False,
-    )
-    spw_fracs = _flag_fraction_per_spw(summary)
+    snap = _flag_snapshot(cal_ms, "initial_rflag", "Initial RFlag (calibrators.ms)")
+    _log_flag_snapshot(snap, log)
+    _append_snapshot(ctx, snap)
 
     heavy_spws = {
-        spw: frac for spw, frac in spw_fracs.items() if frac > BP_REFLAG_THRESHOLD
+        spw_id: info["frac"]
+        for spw_id, info in snap["per_spw"].items()
+        if info["frac"] > BP_REFLAG_THRESHOLD
     }
-    for spw, frac in sorted(spw_fracs.items()):
-        marker = " ***" if spw in heavy_spws else ""
-        log.info("  SPW %2d: %.1f%% flagged%s", spw, frac * 100, marker)
-
     needs_reflag = bool(heavy_spws)
     ctx["needs_bp_reflag"] = needs_reflag
 

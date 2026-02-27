@@ -285,6 +285,13 @@ pre {
 .ratio-ok   { color: #155724; font-weight: 600; }
 .ratio-warn { color: #856404; font-weight: 600; }
 .ratio-bad  { color: #721c24; font-weight: 600; }
+.flag-table { border-collapse: collapse; width: 100%; font-size: 0.85rem; margin-top: 0.5rem; }
+.flag-table th { background: #f1f3f5; padding: 0.3rem 0.6rem; text-align: left; font-weight: 600; }
+.flag-table td { padding: 0.25rem 0.6rem; border-bottom: 1px solid #f1f3f5; }
+.flag-lo   { color: #6c757d; }
+.flag-mid  { color: #856404; font-weight: 600; }
+.flag-hi   { color: #e65c00; font-weight: 600; }
+.flag-crit { color: #721c24; font-weight: 700; }
 """
 
 # ---------------------------------------------------------------------------
@@ -358,6 +365,8 @@ def _render_summary(ctx: PipelineContext, stage_records: list[dict]) -> str:
         if count > 0
     )
 
+    flag_progression = _render_flag_progression(ctx)
+
     return f"""
 <section id="summary">
   <div class="stage-header">
@@ -377,6 +386,7 @@ def _render_summary(ctx: PipelineContext, stage_records: list[dict]) -> str:
     <tr><td>Target(s)</td><td>{target_fields}</td></tr>
     <tr><td>Polarization</td><td>{"Enabled" if do_pol else "Disabled"}</td></tr>
   </table>
+  {flag_progression}
   <div class="verdict-row">{verdict_boxes}</div>
 </section>"""
 
@@ -423,6 +433,51 @@ def _render_cal_diagnostics_table(ctx: PipelineContext) -> str:
         "<th>Field</th><th>SPW</th><th>Freq (GHz)</th><th>Stokes</th>"
         "<th>Peak (Jy)</th><th>RMS (mJy/bm)</th>"
         "<th>Expected (Jy)</th><th>Peak/Expected</th>"
+        "</tr></thead>"
+        f"<tbody>{rows}</tbody>"
+        "</table>"
+    )
+
+
+def _render_flag_progression(ctx: PipelineContext) -> str:
+    """Render a flag-fraction progression table from ctx['flag_snapshots']."""
+    snapshots: list[dict] = ctx.get("flag_snapshots", [])  # type: ignore[assignment]
+    if not snapshots:
+        return ""
+
+    def _frac_cell(frac: float) -> str:
+        pct = frac * 100
+        if pct > 50:
+            css = "flag-crit"
+        elif pct > 30:
+            css = "flag-hi"
+        elif pct >= 10:
+            css = "flag-mid"
+        else:
+            css = "flag-lo"
+        return f'<td><span class="{css}">{pct:.1f}%</span></td>'
+
+    rows = ""
+    for snap in snapshots:
+        total = snap.get("total", 0)
+        flagged = snap.get("flagged", 0)
+        frac = snap.get("frac", 0.0)
+        vis_name = Path(snap.get("vis", "")).name or snap.get("vis", "")
+        rows += (
+            f"<tr>"
+            f"<td>{snap['label']}</td>"
+            f"<td style='font-family:monospace;font-size:0.78rem'>{vis_name}</td>"
+            f"<td>{total:,}</td>"
+            f"<td>{flagged:,}</td>"
+            f"{_frac_cell(frac)}"
+            f"</tr>\n"
+        )
+
+    return (
+        "<h3>Flag Progression</h3>"
+        '<table class="flag-table">'
+        "<thead><tr>"
+        "<th>Stage</th><th>MS</th><th>Total</th><th>Flagged</th><th>%</th>"
         "</tr></thead>"
         f"<tbody>{rows}</tbody>"
         "</table>"

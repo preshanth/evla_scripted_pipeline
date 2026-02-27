@@ -100,6 +100,10 @@ pytest = ">=8.0"
 ruff = ">=0.4"
 # casatasks imports pkg_resources at startup (part of setuptools).
 setuptools = ">=65.0"
+# casatasks uses matplotlib.cbook._is_pandas_dataframe which was removed in 3.9.
+matplotlib = ">=3.7,<3.9"
+# casatasks bundles erfa compiled against numpy 1.x; numpy 2.x breaks the ABI.
+numpy = ">=1.20,<2.0"
 
 [tool.pixi.feature.casa.pypi-dependencies]
 # casaplotms uses protobuf generated code incompatible with protobuf>=4.

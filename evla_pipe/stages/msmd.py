@@ -20,6 +20,7 @@ from pathlib import Path
 import numpy as np
 from casatasks import listobs
 from casatools import msmetadata
+from casatools import table as tbtool
 
 from evla_pipe.context import PipelineContext, compute_critfrac, compute_minBL
 from evla_pipe.simple_utils import field_label
@@ -388,8 +389,13 @@ def run_msmd(ctx: PipelineContext) -> PipelineContext:
         ctx["numAntenna"] = n_ant
 
         # Maximum baseline length — used by cal_diagnostics for cell size.
-        baseline_lengths = msmd.baselinelengths()
-        ctx["max_baseline_m"] = float(np.max(baseline_lengths))
+        # Read ITRF XYZ positions (metres) from the ANTENNA subtable.
+        tb = tbtool()
+        tb.open(msname + "/ANTENNA")
+        positions = tb.getcol("POSITION")  # shape (3, n_ant)
+        tb.close()
+        diffs = positions[:, :, np.newaxis] - positions[:, np.newaxis, :]  # (3,n,n)
+        ctx["max_baseline_m"] = float(np.sqrt((diffs**2).sum(axis=0)).max())
 
         task_log(
             f"MS: {n_spw} spws, {n_fields} fields, {n_ant} antennas, "

@@ -14,10 +14,15 @@ target_ms : str   path to split target measurement set
 import logging
 from pathlib import Path
 
-from casatasks import applycal, flagdata, split, statwt
+from casatasks import applycal, split, statwt
 
 from evla_pipe.context import PipelineContext
 from evla_pipe.simple_utils import field_label
+from evla_pipe.stages._flag_utils import (
+    _append_snapshot,
+    _flag_snapshot,
+    _log_flag_snapshot,
+)
 
 log = logging.getLogger(__name__)
 
@@ -52,10 +57,13 @@ def run_apply_cals(ctx: PipelineContext) -> PipelineContext:
     log.info("  gaintable: %s", gaintable)
 
     # ------------------------------------------------------------------
-    # Flag summary before applycal (for logging)
+    # Flag summary before applycal
     # ------------------------------------------------------------------
-    before = flagdata(vis=ms, mode="summary", action="calculate", savepars=False)
-    _log_flag_summary("before applycal", before)
+    snap_before = _flag_snapshot(
+        ms, "apply_cals_before", "Apply cals — before (full MS)"
+    )
+    _log_flag_snapshot(snap_before, log)
+    _append_snapshot(ctx, snap_before)
 
     # ------------------------------------------------------------------
     # applycal — all fields in full MS
@@ -77,8 +85,9 @@ def run_apply_cals(ctx: PipelineContext) -> PipelineContext:
     # ------------------------------------------------------------------
     # Flag summary after applycal
     # ------------------------------------------------------------------
-    after = flagdata(vis=ms, mode="summary", action="calculate", savepars=False)
-    _log_flag_summary("after applycal", after)
+    snap_after = _flag_snapshot(ms, "apply_cals_after", "Apply cals — after (full MS)")
+    _log_flag_snapshot(snap_after, log)
+    _append_snapshot(ctx, snap_after)
 
     # ------------------------------------------------------------------
     # statwt — reweight target fields by scatter in corrected data
@@ -113,21 +122,7 @@ def run_apply_cals(ctx: PipelineContext) -> PipelineContext:
         target_ms = ""
 
     ctx["target_ms"] = target_ms
-    # Store flag fractions for validation and weblog.
-    ctx["flag_frac_before_applycal"] = (
-        before.get("flagged", 0) / before["total"] if before.get("total") else 0.0
-    )
-    ctx["flag_frac_after_applycal"] = (
-        after.get("flagged", 0) / after["total"] if after.get("total") else 0.0
-    )
+    # Keep scalar fracs for test suite backward-compatibility.
+    ctx["flag_frac_before_applycal"] = snap_before["frac"]
+    ctx["flag_frac_after_applycal"] = snap_after["frac"]
     return ctx
-
-
-def _log_flag_summary(label: str, stats: dict) -> None:
-    total = stats.get("total", 0)
-    flagged = stats.get("flagged", 0)
-    if total > 0:
-        frac = 100.0 * flagged / total
-        log.info("%s: flagged %.2f%% (%d / %d)", label, frac, flagged, total)
-    else:
-        log.info("%s: no data", label)

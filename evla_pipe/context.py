@@ -308,6 +308,13 @@ class PipelineContext(TypedDict, total=False):
     #              peak_jy, rms_jy, expected_jy, ratio, png}
     cal_image_results: list
 
+    # --- flag snapshots ----------------------------------------------------
+    # Accumulated by _append_snapshot() in _flag_utils.py after every stage
+    # that modifies flags.  Each entry is a plain dict (JSON-serialisable):
+    #   {stage, label, vis, total, flagged, frac, per_spw}
+    # Populated by: preflag, initial_rflag, checkflag, apply_cals (×2), final_flags
+    flag_snapshots: list
+
     # --- checkpoint (internal) ---------------------------------------------
     _completed_stages: list  # list of stage name strings; written by save_checkpoint
 
@@ -392,6 +399,7 @@ def make_default_context(sdm_name: str, **kwargs) -> PipelineContext:
         "final_caltables": [],
         "pol_caltables": [],
         "stage_records": [],
+        "flag_snapshots": [],
     }
     ctx.update(kwargs)
     return ctx
@@ -454,8 +462,16 @@ def save_checkpoint(ctx: PipelineContext, stage_name: str) -> None:
         },
         "context": _serialize_ctx(ctx),
     }
+
+    def _default(o):
+        # numpy scalars (int64, float64, …) expose .item(); use it without
+        # importing numpy so this module stays CASA-free.
+        if hasattr(o, "item"):
+            return o.item()
+        raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
+
     tmp = ckpt_dir / "checkpoint.json.tmp"
-    tmp.write_text(json.dumps(payload, indent=2))
+    tmp.write_text(json.dumps(payload, indent=2, default=_default))
     tmp.rename(ckpt_dir / "checkpoint.json")
 
 

@@ -17,6 +17,11 @@ from pathlib import Path
 from casatasks import flagdata, split
 
 from evla_pipe.context import PipelineContext
+from evla_pipe.stages._flag_utils import (
+    _append_snapshot,
+    _flag_snapshot,
+    _log_flag_snapshot,
+)
 
 log = logging.getLogger(__name__)
 
@@ -93,6 +98,10 @@ def run_preflag(ctx: PipelineContext) -> PipelineContext:
     log.info("Applying %d flag commands to %s", len(cmds), msname)
     flagdata(vis=msname, mode="list", inpfile=cmds, flagbackup=True)
     log.info("Pre-calibration flagging complete")
+
+    snap = _flag_snapshot(msname, "preflag", "Pre-flag (full MS)")
+    _log_flag_snapshot(snap, log)
+    _append_snapshot(ctx, snap)
 
     # ------------------------------------------------------------------
     # Split calibrators into working MS
